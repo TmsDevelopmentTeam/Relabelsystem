@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Un equipo del inventario. Los números vienen ya normalizados a 12 chars en el Excel nuevo.
+model Equipment {
+  id            Int      @id @default(autoincrement())
+  po            String?  // PO
+  ordenDell     String?  // Orden Dell
+  producto      String?  // Producto (ej "Dell Pro 14 (PC14250) XCTO Base")
+  cantidadOrden Int?     // Cantidad por orden
+  perfilImagen  String?  // Perfil de Imagen
+  pedido        String?  // PEDIDO
+  posicion      String?  // POSICIÓN (10, 20, 30...)
+  sap           String?  // SAP
+  descripcion   String?  // DESCRIPCIÓN
+  assetTag      String   @unique // SERIE / Asset Tag Dell (SN físico)
+  region        String?  // REGIÓN
+  inventario    String   // INVENTARIO / número de activo fijo (AM2150010001, EQR000002001) — 12 chars
+  solicitante   String?  // SOLICITANTE
+  tipoEtiqueta  String?  // Tipo de etiqueta de activo (COMPUTO CENTRAL / EQUIPO DE RESPALDO)
+
+  equipmentType String   @default("OTHER") // LAPTOP | MONITOR | DESKTOP | OTHER
+
+  // Estados del proceso (4 pasos)
+  //   PENDING      → nada hecho aún
+  //   TAG_PLACED   → Asset Tag ubicado en tablero (paso 1)
+  //   PAIR_READY   → etiqueta grande emparejada en cuadrante (paso 2)
+  //   LABELED      → equipo y caja etiquetados en línea (paso 3)
+  //   MATCHED      → match final verificado (paso 4) ✅
+  status        String   @default("PENDING")
+
+  boardCell     String?  // "A1", "A2", ... "E10"
+
+  taggedAt      DateTime?  // paso 1
+  taggedBy      String?
+  pairedAt      DateTime?  // paso 2
+  pairedBy      String?
+  labeledAt     DateTime?  // paso 3
+  labeledBy     String?
+  matchedAt     DateTime?  // paso 4
+  matchedBy     String?
+
+  events        ScanEvent[]
+
+  @@index([status])
+  @@index([boardCell])
+  @@index([inventario])
+  @@index([equipmentType])
+}
+
+// Estado del tablero: cada cuadrante ocupado por un equipo.
+model BoardSlot {
+  cell          String   @id  // "A1" ... "E10"
+  equipmentId   Int?     @unique
+  occupiedAt    DateTime?
+}
+
+// Log de eventos (auditoría)
+model ScanEvent {
+  id            Int      @id @default(autoincrement())
+  step          String   // TAG | PAIR | LABEL | MATCH
+  assetTag      String?
+  inventario    String?
+  boxLabel      String?
+  boardCell     String?
+  operator      String?
+  result        String   // OK | MISMATCH | NOT_FOUND | DUPLICATE | ERROR
+  message       String?
+  createdAt     DateTime @default(now())
+
+  equipment     Equipment? @relation(fields: [equipmentId], references: [id])
+  equipmentId   Int?
+
+  @@index([createdAt])
+  @@index([step])
+}

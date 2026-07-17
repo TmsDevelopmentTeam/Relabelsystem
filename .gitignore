@@ -1,0 +1,35 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Runtime data (DB local, no se sube)
+prisma/*.db
+prisma/*.db-journal
+*.log
+.next-dev.log
+
+# Env (usar .env.example como plantilla)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# TS
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Scratch / archivos temporales
+sample.xlsx
+*.sample.xlsx
+scratchpad/
