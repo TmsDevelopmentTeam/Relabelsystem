@@ -4,11 +4,14 @@ import { useEffect, useState } from 'react';
 import { ScanInput, beepOK, siren, useOperator } from '@/components/ScanInput';
 
 type Entry = { id: number; orderNumber: string | null; position: number | null; value: string; status: string; operator: string | null; createdAt: string };
+type OrderInfo = { order: string; equipmentCount: number; laptopCount: number; otherCount: number; expectedLabels: number; scannedInRoll: number; remaining: number; completedPct: number; complete: boolean };
 
 export default function RollosPage() {
   const op = useOperator();
   const [operator, setOperator] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
+  const [orderInfo, setOrderInfo] = useState<OrderInfo | null>(null);
+  const [scanning, setScanning] = useState(false);
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [data, setData] = useState<{ order: string; items: Entry[]; count: number; available: number; consumed: number } | null>(null);
@@ -22,8 +25,9 @@ export default function RollosPage() {
   }, []);
 
   useEffect(() => {
-    if (orderNumber) load();
+    if (orderNumber) { load(); loadInfo(); }
     loadSummary();
+    setScanning(false); // al cambiar de orden, se detiene el scan
   }, [orderNumber]);
 
   function saveOrder(v: string) {
@@ -36,6 +40,11 @@ export default function RollosPage() {
     const res = await fetch(`/api/rollos?order=${encodeURIComponent(orderNumber)}&limit=200`, { cache: 'no-store' });
     setData(await res.json());
   }
+  async function loadInfo() {
+    if (!orderNumber) { setOrderInfo(null); return; }
+    const res = await fetch(`/api/rollos/order-info?order=${encodeURIComponent(orderNumber)}`, { cache: 'no-store' });
+    setOrderInfo(await res.json());
+  }
   async function loadSummary() {
     const res = await fetch('/api/rollos?stats=1', { cache: 'no-store' });
     setOrdersSummary(await res.json());
@@ -43,7 +52,7 @@ export default function RollosPage() {
 
   async function submit() {
     if (!value.trim() || busy) return;
-    if (!orderNumber.trim()) { alert('Selecciona o escribe un número de orden arriba'); return; }
+    if (!orderNumber.trim()) { alert('Selecciona una orden arriba'); return; }
     setBusy(true);
     try {
       const res = await fetch('/api/rollos', {
@@ -55,7 +64,7 @@ export default function RollosPage() {
       if (json.ok) {
         beepOK();
         setLastId(json.entry.id);
-        await load(); await loadSummary();
+        await load(); await loadInfo(); await loadSummary();
       } else siren();
       setValue('');
     } catch { siren(); } finally { setBusy(false); }
@@ -64,23 +73,31 @@ export default function RollosPage() {
   async function deleteOne(id: number) {
     if (!confirm(`¿Borrar la entrada #${id}?`)) return;
     await fetch(`/api/rollos?id=${id}`, { method: 'DELETE' });
-    load(); loadSummary();
+    load(); loadInfo(); loadSummary();
   }
 
   async function deleteOrder() {
     if (!orderNumber || !confirm(`¿Borrar TODAS las etiquetas de la orden ${orderNumber}? Solo esta orden.`)) return;
     await fetch(`/api/rollos?order=${encodeURIComponent(orderNumber)}`, { method: 'DELETE' });
-    setLastId(null); load(); loadSummary();
+    setLastId(null); load(); loadInfo(); loadSummary();
   }
 
   async function renumberOrder() {
     if (!orderNumber || !confirm(`¿Renumerar la orden ${orderNumber} a 1..N?`)) return;
-    const res = await fetch(`/api/rollos/renumber?order=${encodeURIComponent(orderNumber)}`, { method: 'POST' });
+    await fetch(`/api/rollos/renumber?order=${encodeURIComponent(orderNumber)}`, { method: 'POST' });
+    load(); loadInfo();
+  }
+
+  async function migrateLegacy() {
+    if (!confirm('¿Asignar orden automáticamente a los rollos sin orden? Se busca cada etiqueta en el catálogo importado y se le pone su Orden Dell correspondiente.')) return;
+    const res = await fetch('/api/rollos/assign-legacy', { method: 'POST' });
     const j = await res.json();
-    if (res.ok) { alert(`Renumerado: ${JSON.stringify(j.result)}`); load(); }
+    alert(`Migrados: ${j.migrated}\nSin orden encontrada: ${j.skipped}`);
+    loadSummary(); if (orderNumber) { load(); loadInfo(); }
   }
 
   const nextPosition = (data?.count ?? 0) + 1;
+  const legacyCount = ordersSummary?.orders.find((o) => o.orderNumber === null)?.count ?? 0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -88,7 +105,7 @@ export default function RollosPage() {
         <div>
           <h1 className="text-3xl font-black text-white">🎞️ Rollos de etiquetas</h1>
           <p className="text-slate-400 text-sm">
-            Cada orden tiene su propio contador. Selecciona la orden actual y escanea. Al cambiar de orden, el contador vuelve a 1.
+            Elige orden → presiona <b>▶ Start Scan</b> → escanea. El sistema cuenta contra el total esperado del Excel.
           </p>
         </div>
         <label className="text-sm flex items-center gap-2">
@@ -100,7 +117,7 @@ export default function RollosPage() {
 
       {/* Selector de orden */}
       <div className="rounded-lg bg-slate-900 border-2 border-cyan-500 p-4">
-        <label className="block text-sm text-slate-300 mb-2">Orden actual (Orden Dell / PO)</label>
+        <label className="block text-sm text-slate-300 mb-2">Orden actual (Orden Dell o PO)</label>
         <div className="flex gap-2 flex-wrap">
           <input
             value={orderNumber}
@@ -123,26 +140,76 @@ export default function RollosPage() {
             </select>
           )}
         </div>
-        {orderNumber && data && (
-          <div className="mt-2 text-sm text-cyan-300 font-mono">
-            Orden <b>{orderNumber}</b> · {data.count} escaneadas · próxima posición <b>#{nextPosition}</b>
+
+        {orderInfo && orderInfo.equipmentCount > 0 && (
+          <div className="mt-3 rounded bg-black/40 p-3">
+            <div className="flex justify-between items-center flex-wrap gap-2 text-sm">
+              <div className="text-white">
+                <b>{orderInfo.equipmentCount}</b> equipos ({orderInfo.laptopCount} laptop, {orderInfo.otherCount} otros)
+                → esperadas <b className="text-cyan-300">{orderInfo.expectedLabels}</b> etiquetas
+              </div>
+              <div className={`font-mono text-lg ${orderInfo.complete ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {orderInfo.scannedInRoll} / {orderInfo.expectedLabels}
+                {orderInfo.complete && ' ✅'}
+              </div>
+            </div>
+            <div className="mt-2 h-3 bg-slate-800 rounded overflow-hidden">
+              <div className={`h-full transition-all ${orderInfo.complete ? 'bg-emerald-500' : 'bg-cyan-500'}`}
+                style={{ width: `${orderInfo.completedPct}%` }}/>
+            </div>
+            <div className="text-xs text-slate-400 mt-1">
+              Faltan <b>{orderInfo.remaining}</b> · Próxima posición <b>#{nextPosition}</b>
+            </div>
+          </div>
+        )}
+
+        {orderInfo && orderInfo.equipmentCount === 0 && orderNumber && (
+          <div className="mt-3 rounded bg-yellow-500 text-black p-3 text-sm">
+            ⚠️ La orden <b>{orderNumber}</b> no existe en el Excel importado. Verifica el número.
           </div>
         )}
       </div>
 
+      {/* Start/Stop Scan */}
+      {orderNumber && (
+        <div className="flex gap-2">
+          {!scanning ? (
+            <button onClick={() => setScanning(true)}
+              className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-6 py-4 text-white text-xl font-black shadow-lg">
+              ▶ Start Scan
+            </button>
+          ) : (
+            <button onClick={() => setScanning(false)}
+              className="flex-1 rounded-lg bg-red-700 hover:bg-red-600 px-6 py-4 text-white text-xl font-black">
+              ■ Stop Scan
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Scan input */}
-      <div className="rounded-lg bg-slate-900 border-2 border-teal-500 p-5">
-        <label className="block text-lg text-slate-200 mb-3">
-          Escanea etiqueta del rollo {orderNumber && <span className="text-teal-400">→ orden {orderNumber}, posición #{nextPosition}</span>}
-        </label>
-        <ScanInput value={value} onChange={setValue} onSubmit={submit} disabled={busy || !orderNumber}
-          placeholder={orderNumber ? "Etiqueta…" : "Selecciona una orden arriba"} borderColor="border-teal-500"/>
-      </div>
+      {orderNumber && scanning && (
+        <div className="rounded-lg bg-slate-900 border-2 border-teal-500 p-5">
+          <label className="block text-lg text-slate-200 mb-3">
+            Escanea etiqueta → <span className="text-teal-400">orden {orderNumber} · posición #{nextPosition}</span>
+          </label>
+          <ScanInput value={value} onChange={setValue} onSubmit={submit} disabled={busy}
+            placeholder="Etiqueta…" borderColor="border-teal-500" armed={true}/>
+        </div>
+      )}
 
       {/* Resumen por orden */}
       {ordersSummary && ordersSummary.orders.length > 0 && (
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <div className="text-sm text-slate-400 mb-2">📊 Resumen por orden</div>
+          <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+            <div className="text-sm text-slate-400">📊 Resumen por orden</div>
+            {legacyCount > 0 && (
+              <button onClick={migrateLegacy}
+                className="rounded bg-amber-700 hover:bg-amber-600 px-3 py-1 text-white text-xs font-bold">
+                ⚙️ Migrar {legacyCount} sin orden → asignar automático
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {ordersSummary.orders.map((o) => (
               <button
@@ -166,7 +233,7 @@ export default function RollosPage() {
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
           <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
             <div className="text-sm text-slate-400">
-              Escaneadas de la orden <b className="text-cyan-300">{orderNumber}</b> (más reciente primero)
+              Escaneadas de <b className="text-cyan-300">{orderNumber}</b> (más reciente primero)
             </div>
             <div className="flex gap-2">
               <button onClick={renumberOrder}

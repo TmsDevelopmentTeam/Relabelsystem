@@ -15,6 +15,7 @@ export default function Paso4Page() {
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => { setOperator(op.get()); }, []);
 
@@ -81,10 +82,26 @@ export default function Paso4Page() {
       </div>
 
       {step !== 'result' && (
+        <div className="flex gap-2">
+          {!scanning ? (
+            <button onClick={() => setScanning(true)}
+              className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-6 py-4 text-white text-xl font-black shadow-lg">
+              ▶ Start Scan
+            </button>
+          ) : (
+            <button onClick={() => { setScanning(false); reset(); }}
+              className="flex-1 rounded-lg bg-red-700 hover:bg-red-600 px-6 py-4 text-white text-xl font-black">
+              ■ Stop Scan
+            </button>
+          )}
+        </div>
+      )}
+
+      {step !== 'result' && scanning && (
         <div className={`rounded-lg border-2 ${stepColor[step]} bg-slate-900 p-5`}>
           <label className="block text-lg text-slate-200 mb-3">{labels[step]}</label>
           <ScanInput value={value} onChange={setValue} onSubmit={submit} disabled={busy}
-            placeholder="Escanea…" borderColor={stepColor[step]}/>
+            placeholder="Escanea…" borderColor={stepColor[step]} armed={true}/>
         </div>
       )}
 

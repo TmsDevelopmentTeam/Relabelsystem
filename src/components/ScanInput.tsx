@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 
 export function ScanInput({
   value, onChange, onSubmit, placeholder, disabled, borderColor = 'border-sky-500',
+  armed = true,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -11,43 +12,45 @@ export function ScanInput({
   placeholder?: string;
   disabled?: boolean;
   borderColor?: string;
+  armed?: boolean; // Cuando true: autofocus agresivo. Cuando false: input normal, se puede clickear afuera.
 }) {
   const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { ref.current?.focus(); }, []);
 
-  // Autofocus agresivo: cualquier click en la página que NO sea sobre un input/button/link
-  // devuelve el foco al scan input. Y si presionan cualquier tecla mientras el foco no está
-  // en un input, también lo captura. Así el operador no necesita mouse.
+  // Focus inicial siempre que se monta o cuando pasa a armed
   useEffect(() => {
+    if (armed) ref.current?.focus();
+  }, [armed]);
+
+  // Autofocus agresivo SOLO cuando armed=true.
+  useEffect(() => {
+    if (!armed) return;
     function ensureFocus() {
       const active = document.activeElement as HTMLElement | null;
       const tag = active?.tagName;
-      // Solo re-enfoca si el foco está en body/nothing (no en otro input/button)
       if (!active || active === document.body || tag === 'HTML') {
         ref.current?.focus();
       }
     }
     function onDocClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
-      // No re-enfocar si hicieron click sobre botón, link, checkbox, otro input, etc.
       if (target?.closest('input, button, a, textarea, select, [role="button"]')) return;
       setTimeout(() => ref.current?.focus(), 10);
     }
     document.addEventListener('click', onDocClick);
-    const iv = setInterval(ensureFocus, 500); // safety net cada 500ms
+    const iv = setInterval(ensureFocus, 500);
     return () => { document.removeEventListener('click', onDocClick); clearInterval(iv); };
-  }, []);
+  }, [armed]);
 
   return (
     <input
       ref={ref}
-      autoFocus
+      autoFocus={armed}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
-      onBlur={() => setTimeout(() => ref.current?.focus(), 100)}
+      onBlur={armed ? () => setTimeout(() => ref.current?.focus(), 100) : undefined}
       placeholder={placeholder ?? 'Escanea…'}
-      className={`w-full rounded bg-slate-950 border-2 ${borderColor} px-4 py-4 text-2xl font-mono tracking-wider focus:outline-none`}
+      className={`w-full rounded bg-slate-950 border-2 ${armed ? borderColor : 'border-slate-700'} px-4 py-4 text-2xl font-mono tracking-wider focus:outline-none disabled:opacity-50`}
       disabled={disabled}
     />
   );

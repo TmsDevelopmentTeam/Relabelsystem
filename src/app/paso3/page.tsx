@@ -10,6 +10,7 @@ export default function EtiquetarPage() {
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => { setOperator(op.get()); }, []);
 
@@ -46,11 +47,27 @@ export default function EtiquetarPage() {
         </label>
       </div>
 
-      <div className="rounded-lg bg-slate-900 border-2 border-purple-500 p-5">
-        <label className="block text-lg text-slate-200 mb-3">Escanea Asset Tag del equipo</label>
-        <ScanInput value={value} onChange={setValue} onSubmit={submit} disabled={busy}
-          placeholder="Asset Tag…" borderColor="border-purple-500"/>
+      <div className="flex gap-2">
+        {!scanning ? (
+          <button onClick={() => setScanning(true)}
+            className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-6 py-4 text-white text-xl font-black shadow-lg">
+            ▶ Start Scan
+          </button>
+        ) : (
+          <button onClick={() => setScanning(false)}
+            className="flex-1 rounded-lg bg-red-700 hover:bg-red-600 px-6 py-4 text-white text-xl font-black">
+            ■ Stop Scan
+          </button>
+        )}
       </div>
+
+      {scanning && (
+        <div className="rounded-lg bg-slate-900 border-2 border-purple-500 p-5">
+          <label className="block text-lg text-slate-200 mb-3">Escanea Asset Tag del equipo</label>
+          <ScanInput value={value} onChange={setValue} onSubmit={submit} disabled={busy}
+            placeholder="Asset Tag…" borderColor="border-purple-500" armed={true}/>
+        </div>
+      )}
 
       {last && (
         <div className={`rounded-lg p-6 ${last.ok ? 'bg-purple-600' : 'bg-red-700'} text-white`}>
