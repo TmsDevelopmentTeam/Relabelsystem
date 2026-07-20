@@ -65,6 +65,12 @@ export async function POST(req: NextRequest) {
     }
     const [updated] = await prisma.$transaction(ops);
 
+    // Buscar en LabelRoll si esta etiqueta fue pre-escaneada del rollo
+    const rollEntry = await prisma.labelRoll.findFirst({
+      where: { value: eq.inventario },
+      orderBy: { id: 'asc' },
+    });
+
     return NextResponse.json({
       ok: true,
       equipment: updated,
@@ -72,6 +78,7 @@ export async function POST(req: NextRequest) {
       inventario: eq.inventario,
       equipmentType: eq.equipmentType,
       producto: eq.producto,
+      rollPosition: rollEntry?.id ?? null,
     });
   } catch (e: any) {
     console.error(e);

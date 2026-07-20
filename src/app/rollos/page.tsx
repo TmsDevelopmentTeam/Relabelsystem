@@ -52,6 +52,14 @@ export default function RollosPage() {
     load();
   }
 
+  async function renumber() {
+    if (!confirm('¿Renumerar los IDs a 1..N (por orden de escaneo)? No se borran valores, solo se renumera.')) return;
+    const res = await fetch('/api/rollos/renumber', { method: 'POST' });
+    const j = await res.json();
+    if (res.ok) { alert(`Renumerado. Total: ${j.total}. IDs ahora: ${j.firstId} → ${j.lastId}`); load(); }
+    else alert('Error');
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-4">
       <div className="flex justify-between items-start flex-wrap gap-2">
@@ -96,10 +104,16 @@ export default function RollosPage() {
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
           <div className="flex justify-between items-center mb-3">
             <div className="text-sm text-slate-400">Últimas escaneadas (más reciente primero)</div>
-            <button onClick={deleteAll}
-              className="rounded bg-red-800 hover:bg-red-700 px-3 py-1 text-white text-xs font-bold">
-              ↻ Borrar todo
-            </button>
+            <div className="flex gap-2">
+              <button onClick={renumber}
+                className="rounded bg-teal-700 hover:bg-teal-600 px-3 py-1 text-white text-xs font-bold">
+                ↕ Renumerar 1..N
+              </button>
+              <button onClick={deleteAll}
+                className="rounded bg-red-800 hover:bg-red-700 px-3 py-1 text-white text-xs font-bold">
+                ↻ Borrar todo
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

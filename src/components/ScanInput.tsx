@@ -14,6 +14,30 @@ export function ScanInput({
 }) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
+
+  // Autofocus agresivo: cualquier click en la página que NO sea sobre un input/button/link
+  // devuelve el foco al scan input. Y si presionan cualquier tecla mientras el foco no está
+  // en un input, también lo captura. Así el operador no necesita mouse.
+  useEffect(() => {
+    function ensureFocus() {
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName;
+      // Solo re-enfoca si el foco está en body/nothing (no en otro input/button)
+      if (!active || active === document.body || tag === 'HTML') {
+        ref.current?.focus();
+      }
+    }
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      // No re-enfocar si hicieron click sobre botón, link, checkbox, otro input, etc.
+      if (target?.closest('input, button, a, textarea, select, [role="button"]')) return;
+      setTimeout(() => ref.current?.focus(), 10);
+    }
+    document.addEventListener('click', onDocClick);
+    const iv = setInterval(ensureFocus, 500); // safety net cada 500ms
+    return () => { document.removeEventListener('click', onDocClick); clearInterval(iv); };
+  }, []);
+
   return (
     <input
       ref={ref}

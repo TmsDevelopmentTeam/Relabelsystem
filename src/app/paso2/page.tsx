@@ -56,13 +56,22 @@ export default function Paso2Page() {
         <div className={`rounded-lg p-6 ${last.ok ? 'bg-amber-600' : 'bg-red-700'} text-white`}>
           {last.ok ? (
             <div className="space-y-3">
-              <div className="text-2xl font-black">📦 COLOCA ESTA ETIQUETA EN CUADRANTE {last.boardCell}</div>
-              <div className="text-lg opacity-90">Junto con la etiqueta pequeña. Así arman el paquete de etiquetas.</div>
+              {last.rollPosition ? (
+                <div className="rounded-xl bg-black/40 p-4 border-2 border-white">
+                  <div className="text-xs uppercase opacity-70">🎞️ Esta etiqueta está en el ROLLO posición</div>
+                  <div className="text-6xl font-black mt-1">#{last.rollPosition}</div>
+                </div>
+              ) : (
+                <div className="text-2xl font-black">📦 COLOCA ESTA ETIQUETA EN CUADRANTE {last.boardCell}</div>
+              )}
+              {!last.rollPosition && (
+                <div className="text-lg opacity-90">Junto con la etiqueta pequeña. Así arman el paquete de etiquetas.</div>
+              )}
               {last.alreadyPaired && <div className="text-sm opacity-80 mt-1">{last.message}</div>}
               {last.othersWithSameInventario > 0 && (
                 <div className="text-sm bg-black/30 rounded p-2 mt-2">
-                  ℹ️ Hay {last.othersWithSameInventario} equipo(s) más con la misma etiqueta ({last.equipment?.inventario}) —
-                  es normal (Monitor + CPU comparten activo). Escanea la siguiente etiqueta grande igual y te dirá otro cuadrante.
+                  ℹ️ Hay {last.othersWithSameInventario} equipo(s) más con la misma etiqueta ({last.equipment?.inventario}).
+                  Escanea el siguiente igual y te dará su ubicación.
                 </div>
               )}
             </div>

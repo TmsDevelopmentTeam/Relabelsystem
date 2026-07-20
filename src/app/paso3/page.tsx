@@ -56,7 +56,14 @@ export default function Paso3Page() {
         <div className={`rounded-lg p-6 ${last.ok ? 'bg-purple-600' : 'bg-red-700'} text-white`}>
           {last.ok ? (
             <div className="space-y-3">
-              <div className="text-3xl font-black">📦 TOMA EL PAQUETE DE ETIQUETAS DEL CUADRANTE {last.boardCell}</div>
+              {last.rollPosition ? (
+                <div className="rounded-xl bg-black/40 p-4 border-2 border-white">
+                  <div className="text-xs uppercase opacity-70">🎞️ Toma la etiqueta del ROLLO posición</div>
+                  <div className="text-6xl font-black mt-1">#{last.rollPosition}</div>
+                </div>
+              ) : (
+                <div className="text-3xl font-black">📦 TOMA EL PAQUETE DE ETIQUETAS DEL CUADRANTE {last.boardCell}</div>
+              )}
               <div className="grid sm:grid-cols-2 gap-3 mt-2">
                 <Field label="Etiqueta a pegar (Inventario)" value={last.inventario ?? '-'} big/>
                 <Field label="Tipo de equipo" value={last.equipmentType ?? '-'} big/>

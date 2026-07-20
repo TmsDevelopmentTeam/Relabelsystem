@@ -42,6 +42,13 @@ export async function POST(req: NextRequest) {
     const target = withCell.find((e) => e.status === 'TAG_PLACED') ?? withCell[0];
     const alreadyPaired = target.status === 'PAIR_READY';
 
+    // Buscar en LabelRoll si esta etiqueta fue pre-escaneada del rollo → devolver posición
+    const rollEntry = await prisma.labelRoll.findFirst({
+      where: { value: inventario },
+      orderBy: { id: 'asc' },
+    });
+    const rollPosition = rollEntry?.id ?? null;
+
     if (alreadyPaired) {
       await prisma.scanEvent.create({
         data: { step: 'PAIR', inventario, boardCell: target.boardCell, operator, result: 'DUPLICATE',
@@ -49,6 +56,7 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({
         ok: true, alreadyPaired: true, equipment: target, boardCell: target.boardCell!,
+        rollPosition,
         message: `Ya estaba emparejada en ${target.boardCell}`,
       });
     }
@@ -67,6 +75,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       equipment: updated,
       boardCell: target.boardCell!,
+      rollPosition,
       othersWithSameInventario: withCell.length - 1,
     });
   } catch (e: any) {
