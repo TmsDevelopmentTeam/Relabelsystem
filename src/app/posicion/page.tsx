@@ -34,8 +34,8 @@ export default function PosicionPage() {
     <div className="max-w-4xl mx-auto space-y-4">
       <div className="flex justify-between items-start flex-wrap gap-2">
         <div>
-          <h1 className="text-3xl font-black text-white">🔎 Posición en la orden</h1>
-          <p className="text-slate-400 text-sm">Escanea el Asset Tag (SN Dell) → el sistema te dice qué # de la orden es (1 = inventario más chico, N = más grande).</p>
+          <h1 className="text-3xl font-black text-white">🔎 Posición en el rollo</h1>
+          <p className="text-slate-400 text-sm">Escanea el Asset Tag (SN Dell) → el sistema te dice qué # del rollo pre-escaneado le corresponde (según el consecutivo escaneado en 🎞️ Rollos).</p>
         </div>
         <label className="text-sm flex items-center gap-2">
           <span className="text-slate-400">Operador:</span>
@@ -71,9 +71,9 @@ export default function PosicionPage() {
           {last.ok ? (
             <div className="space-y-3">
               <div className="rounded-xl bg-black/40 p-4 border-2 border-white">
-                <div className="text-xs uppercase opacity-70">POSICIÓN EN LA ORDEN {last.orderNumber}</div>
+                <div className="text-xs uppercase opacity-70">🎞️ POSICIÓN EN EL ROLLO · Orden {last.orderNumber}</div>
                 <div className="text-7xl font-black mt-1">#{last.position}</div>
-                <div className="text-lg opacity-90 mt-1">de {last.totalInOrder} equipos</div>
+                <div className="text-lg opacity-90 mt-1">de {last.totalInOrder} escaneadas</div>
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="rounded bg-black/30 p-3">
@@ -90,7 +90,14 @@ export default function PosicionPage() {
                 {last.equipmentType === 'MONITOR' && '📺 '}
                 {last.equipmentType === 'DESKTOP' && '🖥️ '}
                 {last.producto ?? '-'}
-                <span className="opacity-70"> · rango de la orden: {last.firstInventario} … {last.lastInventario}</span>
+              </div>
+            </div>
+          ) : last.reason === 'NOT_IN_ROLL' ? (
+            <div>
+              <div className="text-2xl font-black">⚠️ NO ESTÁ EN EL ROLLO AÚN</div>
+              <div className="mt-2">{last.message}</div>
+              <div className="mt-3 text-sm bg-black/30 rounded p-3 font-mono">
+                Asset: {last.assetTag} · Inventario: {last.inventario} · Orden: {last.orderNumber ?? '-'}
               </div>
             </div>
           ) : (
