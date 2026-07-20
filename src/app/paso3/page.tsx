@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ScanInput, beepOK, siren, useOperator } from '@/components/ScanInput';
 
-export default function Paso3Page() {
+export default function EtiquetarPage() {
   const op = useOperator();
   const [operator, setOperator] = useState('');
   const [value, setValue] = useState('');
@@ -19,11 +19,11 @@ export default function Paso3Page() {
     try {
       const res = await fetch('/api/paso3-label', {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ assetTag: value, operator }),
+        body: JSON.stringify({ scanned: value, operator }),
       });
       const json = await res.json();
       setLast(json);
-      setHistory((h) => [{...json, scanned: value, at: new Date()}, ...h].slice(0, 8));
+      setHistory((h) => [{ ...json, scanned: value, at: new Date() }, ...h].slice(0, 10));
       if (json.ok) beepOK(); else siren();
       setValue('');
     } catch (e:any) {
@@ -36,8 +36,8 @@ export default function Paso3Page() {
     <div className="max-w-4xl mx-auto space-y-4">
       <div className="flex justify-between items-start flex-wrap gap-2">
         <div>
-          <h1 className="text-3xl font-black text-white">③ LABEL · Línea de producción</h1>
-          <p className="text-slate-400 text-sm">Escanea el Asset Tag del equipo → sistema te dice qué cuadrante tiene su paquete de etiquetas.</p>
+          <h1 className="text-3xl font-black text-white">② ETIQUETAR (línea)</h1>
+          <p className="text-slate-400 text-sm">Escanea el Asset Tag del equipo → sistema te dice qué etiqueta pegar y su posición en el rollo.</p>
         </div>
         <label className="text-sm flex items-center gap-2">
           <span className="text-slate-400">Operador:</span>
@@ -56,29 +56,27 @@ export default function Paso3Page() {
         <div className={`rounded-lg p-6 ${last.ok ? 'bg-purple-600' : 'bg-red-700'} text-white`}>
           {last.ok ? (
             <div className="space-y-3">
+              <div className="rounded-xl bg-black/40 p-4 border-2 border-white">
+                <div className="text-xs uppercase opacity-70">📛 Etiqueta a pegar (Inventario)</div>
+                <div className="text-4xl font-mono font-bold mt-1">{last.inventario ?? '-'}</div>
+              </div>
               {last.rollPosition ? (
-                <div className="rounded-xl bg-black/40 p-4 border-2 border-white">
-                  <div className="text-xs uppercase opacity-70">🎞️ Toma la etiqueta del ROLLO posición</div>
+                <div className="rounded-xl bg-emerald-700 p-4 border-2 border-white">
+                  <div className="text-xs uppercase opacity-90">🎞️ Posición en el rollo</div>
                   <div className="text-6xl font-black mt-1">#{last.rollPosition}</div>
                 </div>
               ) : (
-                <div className="text-3xl font-black">📦 TOMA EL PAQUETE DE ETIQUETAS DEL CUADRANTE {last.boardCell}</div>
-              )}
-              <div className="grid sm:grid-cols-2 gap-3 mt-2">
-                <Field label="Etiqueta a pegar (Inventario)" value={last.inventario ?? '-'} big/>
-                <Field label="Tipo de equipo" value={last.equipmentType ?? '-'} big/>
-              </div>
-              {last.equipmentType === 'LAPTOP' && (
-                <div className="rounded-lg bg-yellow-400 text-black p-4 font-bold text-lg mt-2">
-                  💻 LAPTOP: pega DOS etiquetas iguales en la parte posterior (una en cada esquina).
+                <div className="rounded-xl bg-yellow-500 text-black p-3 text-sm">
+                  ⚠️ Esta etiqueta no está en el rollo pre-cargado. Ve a <b>Rollos</b> y escánenla primero.
                 </div>
               )}
-              {last.equipmentType === 'MONITOR' && (
-                <div className="rounded bg-black/40 p-3">📺 MONITOR · 1 etiqueta atrás.</div>
+              {last.equipmentType === 'LAPTOP' && (
+                <div className="rounded-lg bg-yellow-400 text-black p-4 font-bold text-lg">
+                  💻 LAPTOP: pega DOS etiquetas iguales en la parte posterior.
+                </div>
               )}
-              {last.equipmentType === 'DESKTOP' && (
-                <div className="rounded bg-black/40 p-3">🖥️ CPU · 1 etiqueta en la cara del SN de fábrica.</div>
-              )}
+              {last.equipmentType === 'MONITOR' && <div className="rounded bg-black/40 p-3">📺 Monitor · 1 etiqueta atrás.</div>}
+              {last.equipmentType === 'DESKTOP' && <div className="rounded bg-black/40 p-3">🖥️ CPU · 1 etiqueta en la cara del SN de fábrica.</div>}
               <div className="rounded bg-black/40 p-3 text-sm">
                 Producto: <b>{last.producto ?? '-'}</b>
               </div>
@@ -99,21 +97,14 @@ export default function Paso3Page() {
           <ul className="space-y-1 text-sm font-mono">
             {history.map((h, i) => (
               <li key={i} className={h.ok ? 'text-emerald-400' : 'text-red-400'}>
-                {h.ok ? `✓ ${h.scanned} → cuadrante ${h.boardCell} · ${h.inventario ?? ''}` : `✗ ${h.scanned} · ${h.reason ?? ''}`}
+                {h.ok
+                  ? `✓ ${h.scanned} → ${h.inventario ?? ''} ${h.rollPosition ? `· rollo #${h.rollPosition}` : ''}`
+                  : `✗ ${h.scanned} · ${h.reason ?? ''}`}
               </li>
             ))}
           </ul>
         </div>
       )}
-    </div>
-  );
-}
-
-function Field({ label, value, big }: { label: string; value: string; big?: boolean }) {
-  return (
-    <div className="rounded bg-black/30 p-3">
-      <div className="text-xs uppercase text-white/70">{label}</div>
-      <div className={`font-mono text-white ${big ? 'text-2xl' : 'text-lg'} mt-1`}>{value}</div>
     </div>
   );
 }

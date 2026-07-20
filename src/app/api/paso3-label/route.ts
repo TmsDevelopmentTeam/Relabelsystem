@@ -5,80 +5,72 @@ import { norm } from '@/lib/normalize';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// PASO 3: Línea de producción.
-// Escanean Asset Tag → sistema dice qué cuadrante tiene el paquete de etiquetas.
-// El operador toma esas etiquetas, saca la compu, pega pequeña al equipo y grande a la caja.
-// Marca equipo como LABELED y LIBERA el cuadrante.
+// PASO ② ETIQUETAR:
+// El operador ya tiene la etiqueta en la mano. Escanea el Asset Tag del equipo
+// para confirmar cuál es la etiqueta que le va y marcar como LABELED.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const assetTag = norm(body?.assetTag);
+    const scanned = norm(body?.scanned ?? body?.assetTag);
     const operator = String(body?.operator ?? 'unknown');
-    if (!assetTag) return NextResponse.json({ ok: false, reason: 'MISSING', message: 'Asset Tag vacío' }, { status: 400 });
+    if (!scanned) return NextResponse.json({ ok: false, reason: 'MISSING', message: 'Escaneo vacío' }, { status: 400 });
 
-    const eq = await prisma.equipment.findUnique({ where: { assetTag } });
-    if (!eq) {
-      await prisma.scanEvent.create({
-        data: { step: 'LABEL', assetTag, operator, result: 'NOT_FOUND', message: 'Asset Tag no existe' },
-      });
-      return NextResponse.json({ ok: false, reason: 'NOT_FOUND', message: `Asset Tag ${assetTag} no encontrado` });
+    // Aceptar Asset Tag o Inventario
+    const isInventario = /^(AM|EQR)/.test(scanned);
+    let eq: any;
+    if (isInventario) {
+      eq = await prisma.equipment.findFirst({ where: { inventario: scanned, status: { not: 'MATCHED' } } });
+    } else {
+      eq = await prisma.equipment.findUnique({ where: { assetTag: scanned } });
     }
 
-    if (eq.status === 'LABELED' || eq.status === 'MATCHED') {
+    if (!eq) {
       await prisma.scanEvent.create({
-        data: { step: 'LABEL', assetTag, operator, result: 'DUPLICATE', equipmentId: eq.id,
-                message: `Ya etiquetado (${eq.status})` },
+        data: { step: 'LABEL', assetTag: scanned, operator, result: 'NOT_FOUND', message: 'No encontrado' },
+      });
+      return NextResponse.json({ ok: false, reason: 'NOT_FOUND', message: `${scanned} no encontrado` });
+    }
+
+    if (eq.status === 'MATCHED') {
+      await prisma.scanEvent.create({
+        data: { step: 'LABEL', assetTag: eq.assetTag, operator, result: 'DUPLICATE', equipmentId: eq.id,
+                message: 'Ya MATCHED' },
       });
       return NextResponse.json({
         ok: true, alreadyLabeled: true, equipment: eq,
-        message: `Este equipo ya está etiquetado (${eq.status})`,
+        message: 'Este equipo ya está verificado (MATCHED)',
       });
     }
 
-    if (eq.status !== 'PAIR_READY') {
-      await prisma.scanEvent.create({
-        data: { step: 'LABEL', assetTag, operator, result: 'ERROR', equipmentId: eq.id,
-                message: `Estado inválido: ${eq.status}` },
-      });
-      return NextResponse.json({
-        ok: false, reason: 'NOT_READY',
-        message: `Este equipo aún no tiene su paquete de etiquetas emparejado. Estado: ${eq.status}. Completa paso 1 y 2 primero.`,
-      });
-    }
-
-    const boardCell = eq.boardCell;
-
-    const ops: any[] = [
-      prisma.equipment.update({
-        where: { id: eq.id },
-        data: { status: 'LABELED', labeledAt: new Date(), labeledBy: operator, boardCell: null },
-      }),
-      prisma.scanEvent.create({
-        data: { step: 'LABEL', assetTag, boardCell, inventario: eq.inventario, operator, result: 'OK', equipmentId: eq.id },
-      }),
-    ];
-    if (boardCell) {
-      ops.push(prisma.boardSlot.update({
-        where: { cell: boardCell },
-        data: { equipmentId: null, occupiedAt: null },
-      }));
-    }
-    const [updated] = await prisma.$transaction(ops);
-
-    // Buscar en LabelRoll si esta etiqueta fue pre-escaneada del rollo
     const rollEntry = await prisma.labelRoll.findFirst({
       where: { value: eq.inventario },
       orderBy: { id: 'asc' },
+    });
+    const rollPosition = rollEntry?.id ?? null;
+
+    // Marcar LABELED si estaba pendiente
+    const shouldAdvance = eq.status !== 'LABELED';
+    let updated = eq;
+    if (shouldAdvance) {
+      updated = await prisma.equipment.update({
+        where: { id: eq.id },
+        data: { status: 'LABELED', labeledAt: new Date(), labeledBy: operator },
+      });
+    }
+
+    await prisma.scanEvent.create({
+      data: { step: 'LABEL', assetTag: eq.assetTag, inventario: eq.inventario, operator, result: 'OK',
+              equipmentId: eq.id, message: rollPosition ? `Rollo #${rollPosition}` : null },
     });
 
     return NextResponse.json({
       ok: true,
       equipment: updated,
-      boardCell,
       inventario: eq.inventario,
       equipmentType: eq.equipmentType,
       producto: eq.producto,
-      rollPosition: rollEntry?.id ?? null,
+      rollPosition,
+      alreadyLabeled: !shouldAdvance,
     });
   } catch (e: any) {
     console.error(e);

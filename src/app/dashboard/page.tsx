@@ -12,12 +12,12 @@ export default function DashboardPage() {
   if (!s) return <div>Cargando…</div>;
 
   const kpis = [
-    { label: 'Total',      value: s.total,   color: 'bg-slate-800' },
-    { label: 'Pendientes', value: s.pending, color: 'bg-slate-700' },
-    { label: '① Tagged',   value: s.tagged,  color: 'bg-sky-800' },
-    { label: '② Paired',   value: s.paired,  color: 'bg-amber-800' },
-    { label: '③ Labeled',  value: s.labeled, color: 'bg-purple-800' },
-    { label: '④ Matched',  value: s.matched, color: 'bg-emerald-700' },
+    { label: 'Total',       value: s.total,     color: 'bg-slate-800' },
+    { label: 'Pendientes',  value: s.pending,   color: 'bg-slate-700' },
+    { label: '① Ubicados',  value: s.paired,    color: 'bg-amber-800' },
+    { label: '② Etiquetados', value: s.labeled, color: 'bg-purple-800' },
+    { label: '③ Matched',   value: s.matched,   color: 'bg-emerald-700' },
+    { label: '🎞️ Rollos',    value: s.rollTotal, color: 'bg-teal-800' },
   ];
 
   const typeInfo: Record<string,{emoji:string;name:string;color:string}> = {
@@ -37,7 +37,7 @@ export default function DashboardPage() {
           </a>
           <button
             onClick={async () => {
-              if (!confirm('¿Reiniciar TODO el proceso? Esto pone todos los equipos en PENDING, vacía el tablero y borra el historial de eventos. No borra el catálogo importado.')) return;
+              if (!confirm('¿Reiniciar TODO el proceso? Esto pone todos los equipos en PENDING y borra el historial de eventos. No borra el catálogo importado ni los rollos.')) return;
               const res = await fetch('/api/reset', { method: 'POST' });
               if (res.ok) { alert('Proceso reiniciado'); load(); }
               else alert('Error al reiniciar');
@@ -80,10 +80,9 @@ export default function DashboardPage() {
               </div>
               <div className="text-xs text-slate-400 grid grid-cols-2 gap-1">
                 <div>Pending: <b className="text-white">{agg.pending}</b></div>
-                <div>Tagged: <b className="text-sky-300">{agg.tagged}</b></div>
-                <div>Paired: <b className="text-amber-300">{agg.paired}</b></div>
-                <div>Labeled: <b className="text-purple-300">{agg.labeled}</b></div>
-                <div className="col-span-2">Matched: <b className="text-emerald-300">{agg.matched}</b></div>
+                <div>Ubicados: <b className="text-amber-300">{agg.paired}</b></div>
+                <div>Etiquetados: <b className="text-purple-300">{agg.labeled}</b></div>
+                <div>Matched: <b className="text-emerald-300">{agg.matched}</b></div>
               </div>
               <div className="mt-2 h-2 bg-black/40 rounded overflow-hidden">
                 <div className="h-full bg-emerald-400" style={{ width: `${pct}%` }}/>
