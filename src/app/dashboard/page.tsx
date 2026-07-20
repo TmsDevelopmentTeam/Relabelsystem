@@ -61,10 +61,16 @@ export default function DashboardPage() {
       <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
         <div className="flex justify-between text-sm text-slate-400 mb-2">
           <span>Progreso (Matched / Total)</span>
-          <span>{s.progressPct}%</span>
+          <span>
+            {s.matched}/{s.total} ·{' '}
+            {s.progressPctExact < 1 && s.matched > 0
+              ? s.progressPctExact.toFixed(2)
+              : s.progressPct}%
+          </span>
         </div>
         <div className="h-4 bg-slate-800 rounded overflow-hidden">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${s.progressPct}%` }}/>
+          <div className="h-full bg-emerald-500 transition-all"
+            style={{ width: s.matched > 0 ? `max(2px, ${s.progressPctExact}%)` : '0%' }}/>
         </div>
       </div>
 

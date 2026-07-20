@@ -28,6 +28,7 @@ export async function GET() {
   return NextResponse.json({
     total, pending, paired, labeled, matched,
     progressPct: total ? Math.round((matched / total) * 100) : 0,
+    progressPctExact: total ? (matched / total) * 100 : 0,
     byType: typeAgg,
     rollTotal,
     recent,
