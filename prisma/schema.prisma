@@ -61,6 +61,22 @@ model BoardSlot {
   occupiedAt    DateTime?
 }
 
+// Rollos de etiquetas: pila pre-cargada. Cada scan se guarda con consecutivo automático.
+// Se puede consumir en orden (FIFO) cuando pasa una computadora por la línea,
+// para no tener que buscar la etiqueta específica en la caja.
+model LabelRoll {
+  id        Int      @id @default(autoincrement()) // consecutivo natural
+  value     String   // el código escaneado del rollo
+  status    String   @default("AVAILABLE") // AVAILABLE | CONSUMED
+  operator  String?
+  createdAt DateTime @default(now())
+  consumedAt DateTime?
+  consumedBy String?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
 // Log de eventos (auditoría)
 model ScanEvent {
   id            Int      @id @default(autoincrement())
