@@ -18,6 +18,7 @@ export default function RollosPage() {
   const [ordersSummary, setOrdersSummary] = useState<{ orders: { orderNumber: string | null; count: number }[]; overall: number } | null>(null);
   const [lastId, setLastId] = useState<number | null>(null);
   const [wrongOrder, setWrongOrder] = useState<{ scanned: string; expectedOrder: string; equipment: any } | null>(null);
+  const [lastConfirm, setLastConfirm] = useState<{ position: number; value: string; equipment: any } | null>(null);
 
   useEffect(() => {
     setOperator(op.get());
@@ -66,6 +67,7 @@ export default function RollosPage() {
       if (json.ok) {
         beepOK();
         setLastId(json.entry.id);
+        setLastConfirm({ position: json.entry.position, value: json.entry.value, equipment: json.equipment });
         setWrongOrder(null);
         await load(); await loadInfo(); await loadSummary();
         setValue('');
@@ -205,6 +207,31 @@ export default function RollosPage() {
           </label>
           <ScanInput value={value} onChange={setValue} onSubmit={() => submit(false)} disabled={busy}
             placeholder="Etiqueta…" borderColor="border-teal-500" armed={true}/>
+        </div>
+      )}
+
+      {/* Confirmación visual del último scan */}
+      {lastConfirm && (
+        <div className="rounded-lg bg-emerald-700 p-4 text-white border-2 border-white">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <div className="text-xs uppercase opacity-80">✅ Guardado en posición</div>
+              <div className="text-4xl font-black">#{lastConfirm.position}</div>
+              <div className="text-xl font-mono mt-1">{lastConfirm.value}</div>
+            </div>
+            {lastConfirm.equipment && (
+              <div className="text-right">
+                <div className="text-xs uppercase opacity-80">Equipo asociado</div>
+                <div className="text-lg font-bold">
+                  {lastConfirm.equipment.equipmentType === 'LAPTOP' && '💻 '}
+                  {lastConfirm.equipment.equipmentType === 'MONITOR' && '📺 '}
+                  {lastConfirm.equipment.equipmentType === 'DESKTOP' && '🖥️ '}
+                  {lastConfirm.equipment.producto ?? '-'}
+                </div>
+                <div className="text-sm font-mono opacity-90">Asset Tag: {lastConfirm.equipment.assetTag ?? '-'}</div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

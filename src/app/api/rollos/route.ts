@@ -69,9 +69,18 @@ export async function POST(req: NextRequest) {
       data: { value, operator, orderNumber, position: nextPosition },
     });
 
+    // Info del equipo asociado en ESTA orden (para confirmar visualmente al operador)
+    const eqInOrder = await prisma.equipment.findFirst({
+      where: {
+        inventario: value,
+        OR: [{ ordenDell: orderNumber }, { po: orderNumber }],
+      },
+      select: { assetTag: true, producto: true, equipmentType: true },
+    });
+
     const totalForOrder = await prisma.labelRoll.count({ where: { orderNumber } });
     const totalOverall = await prisma.labelRoll.count();
-    return NextResponse.json({ ok: true, entry: created, totalForOrder, totalOverall });
+    return NextResponse.json({ ok: true, entry: created, totalForOrder, totalOverall, equipment: eqInOrder });
   } catch (e: any) {
     console.error(e);
     return NextResponse.json({ error: e?.message ?? 'Error' }, { status: 500 });
