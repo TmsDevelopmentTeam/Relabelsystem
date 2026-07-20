@@ -5,59 +5,74 @@ import { norm } from '@/lib/normalize';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// PASO 2: Escanear etiqueta GRANDE (número de INVENTARIO / activo fijo).
-// El sistema encuentra a qué Asset Tag corresponde y en qué cuadrante está.
+// PASO 2: Escanear ASSET TAG (SN Dell tipo 1NZX0K4) o ETIQUETA GRANDE (AM2150…/EQR…).
+// El sistema encuentra a qué equipo corresponde y en qué posición del rollo está su etiqueta.
 // Marca el equipo como PAIR_READY.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const inventario = norm(body?.inventario);
+    // Aceptamos scan como `assetTag` o `inventario` (compat) o `scanned` (nombre genérico)
+    const scanned = norm(body?.scanned ?? body?.assetTag ?? body?.inventario);
     const operator = String(body?.operator ?? 'unknown');
-    if (!inventario) return NextResponse.json({ ok: false, reason: 'MISSING', message: 'Etiqueta vacía' }, { status: 400 });
+    if (!scanned) return NextResponse.json({ ok: false, reason: 'MISSING', message: 'Escaneo vacío' }, { status: 400 });
 
-    // Buscar equipos con este inventario (puede haber 2: Monitor + CPU comparten activo)
-    const equipos = await prisma.equipment.findMany({ where: { inventario } });
+    // Detectar si es Asset Tag (formato Dell, no empieza con AM/EQR) o INVENTARIO
+    const isInventario = /^(AM|EQR)/.test(scanned);
+
+    let equipos: any[] = [];
+    let inventarioResolved = scanned;
+
+    if (isInventario) {
+      // Búsqueda directa por inventario (puede haber 2: Monitor + CPU comparten activo)
+      equipos = await prisma.equipment.findMany({ where: { inventario: scanned } });
+    } else {
+      // Es Asset Tag → busco el equipo y de ahí saco su inventario
+      const eq = await prisma.equipment.findUnique({ where: { assetTag: scanned } });
+      if (eq) {
+        inventarioResolved = eq.inventario;
+        // Traigo también los otros equipos que comparten inventario (para mostrar el conteo)
+        equipos = await prisma.equipment.findMany({ where: { inventario: eq.inventario } });
+      }
+    }
+
     if (!equipos.length) {
       await prisma.scanEvent.create({
-        data: { step: 'PAIR', inventario, operator, result: 'NOT_FOUND', message: 'Inventario no existe' },
-      });
-      return NextResponse.json({ ok: false, reason: 'NOT_FOUND', message: `Etiqueta ${inventario} no encontrada` });
-    }
-
-    // Filtrar: solo los que ya tienen cuadrante asignado (paso 1 hecho)
-    const withCell = equipos.filter((e) => e.boardCell && (e.status === 'TAG_PLACED' || e.status === 'PAIR_READY'));
-
-    if (!withCell.length) {
-      await prisma.scanEvent.create({
-        data: { step: 'PAIR', inventario, operator, result: 'ERROR', equipmentId: equipos[0].id,
-                message: 'Ningún equipo con este inventario está en el tablero (paso 1 pendiente)' },
+        data: { step: 'PAIR', inventario: scanned, operator, result: 'NOT_FOUND',
+                message: `No encontrado como ${isInventario ? 'inventario' : 'asset tag'}` },
       });
       return NextResponse.json({
-        ok: false, reason: 'NO_TAG_PLACED',
-        message: `Ningún equipo con etiqueta ${inventario} está en el tablero. Haz primero el paso 1 (Asset Tag).`,
+        ok: false, reason: 'NOT_FOUND',
+        message: `${scanned} no encontrado (ni como Asset Tag ni como etiqueta).`,
       });
     }
 
-    // Elegir el primero que aún no esté emparejado (o si todos están, indicar duplicado)
-    const target = withCell.find((e) => e.status === 'TAG_PLACED') ?? withCell[0];
-    const alreadyPaired = target.status === 'PAIR_READY';
+    // Elegir el target: el que hicimos scan directo (si asset tag) o el primero pendiente
+    let target: any;
+    if (!isInventario) {
+      target = equipos.find((e) => e.assetTag === scanned) ?? equipos[0];
+    } else {
+      target = equipos.find((e) => e.status !== 'PAIR_READY' && e.status !== 'LABELED' && e.status !== 'MATCHED') ?? equipos[0];
+    }
 
-    // Buscar en LabelRoll si esta etiqueta fue pre-escaneada del rollo → devolver posición
+    const alreadyPaired = target.status === 'PAIR_READY' || target.status === 'LABELED' || target.status === 'MATCHED';
+
+    // Buscar la etiqueta en el rollo (por el inventario resuelto)
     const rollEntry = await prisma.labelRoll.findFirst({
-      where: { value: inventario },
+      where: { value: inventarioResolved },
       orderBy: { id: 'asc' },
     });
     const rollPosition = rollEntry?.id ?? null;
 
     if (alreadyPaired) {
       await prisma.scanEvent.create({
-        data: { step: 'PAIR', inventario, boardCell: target.boardCell, operator, result: 'DUPLICATE',
-                equipmentId: target.id, message: 'Ya estaba emparejada' },
+        data: { step: 'PAIR', inventario: inventarioResolved, boardCell: target.boardCell, operator,
+                result: 'DUPLICATE', equipmentId: target.id, message: `Ya estaba ${target.status}` },
       });
       return NextResponse.json({
-        ok: true, alreadyPaired: true, equipment: target, boardCell: target.boardCell!,
-        rollPosition,
-        message: `Ya estaba emparejada en ${target.boardCell}`,
+        ok: true, alreadyPaired: true, equipment: target,
+        boardCell: target.boardCell ?? null,
+        rollPosition, inventario: inventarioResolved,
+        message: `Este equipo ya estaba en estado ${target.status}`,
       });
     }
 
@@ -67,16 +82,18 @@ export async function POST(req: NextRequest) {
         data: { status: 'PAIR_READY', pairedAt: new Date(), pairedBy: operator },
       }),
       prisma.scanEvent.create({
-        data: { step: 'PAIR', inventario, boardCell: target.boardCell, operator, result: 'OK', equipmentId: target.id },
+        data: { step: 'PAIR', inventario: inventarioResolved, boardCell: target.boardCell, operator,
+                result: 'OK', equipmentId: target.id },
       }),
     ]);
 
     return NextResponse.json({
       ok: true,
       equipment: updated,
-      boardCell: target.boardCell!,
+      boardCell: target.boardCell ?? null,
       rollPosition,
-      othersWithSameInventario: withCell.length - 1,
+      inventario: inventarioResolved,
+      othersWithSameInventario: equipos.length - 1,
     });
   } catch (e: any) {
     console.error(e);

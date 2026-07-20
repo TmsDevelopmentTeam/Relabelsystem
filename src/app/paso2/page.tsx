@@ -19,7 +19,7 @@ export default function Paso2Page() {
     try {
       const res = await fetch('/api/paso2-pair', {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ inventario: value, operator }),
+        body: JSON.stringify({ scanned: value, operator }),
       });
       const json = await res.json();
       setLast(json);
@@ -37,7 +37,7 @@ export default function Paso2Page() {
       <div className="flex justify-between items-start flex-wrap gap-2">
         <div>
           <h1 className="text-3xl font-black text-white">② PAIR · Emparejar etiquetas GRANDES</h1>
-          <p className="text-slate-400 text-sm">Escanea la etiqueta grande (INVENTARIO) → sistema dice en qué cuadrante ponerla junto con su etiqueta pequeña.</p>
+          <p className="text-slate-400 text-sm">Escanea Asset Tag (SN) o etiqueta grande (AM/EQR) → sistema te dice en qué posición del rollo está la etiqueta.</p>
         </div>
         <label className="text-sm flex items-center gap-2">
           <span className="text-slate-400">Operador:</span>
@@ -47,7 +47,7 @@ export default function Paso2Page() {
       </div>
 
       <div className="rounded-lg bg-slate-900 border-2 border-amber-500 p-5">
-        <label className="block text-lg text-slate-200 mb-3">Escanea la etiqueta GRANDE (INVENTARIO)</label>
+        <label className="block text-lg text-slate-200 mb-3">Escanea Asset Tag o etiqueta grande</label>
         <ScanInput value={value} onChange={setValue} onSubmit={submit} disabled={busy}
           placeholder="Etiqueta grande…" borderColor="border-amber-500"/>
       </div>
