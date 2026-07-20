@@ -42,11 +42,17 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const rollEntry = await prisma.labelRoll.findFirst({
-      where: { value: eq.inventario },
-      orderBy: { id: 'asc' },
-    });
-    const rollPosition = rollEntry?.id ?? null;
+    const rollEntry =
+      (await prisma.labelRoll.findFirst({
+        where: { value: eq.inventario, orderNumber: { not: null } },
+        orderBy: { id: 'asc' },
+      })) ??
+      (await prisma.labelRoll.findFirst({
+        where: { value: eq.inventario },
+        orderBy: { id: 'asc' },
+      }));
+    const rollPosition = rollEntry?.position ?? rollEntry?.id ?? null;
+    const rollOrder = rollEntry?.orderNumber ?? null;
 
     // Marcar LABELED si estaba pendiente
     const shouldAdvance = eq.status !== 'LABELED';
@@ -70,6 +76,7 @@ export async function POST(req: NextRequest) {
       equipmentType: eq.equipmentType,
       producto: eq.producto,
       rollPosition,
+      rollOrder,
       alreadyLabeled: !shouldAdvance,
     });
   } catch (e: any) {

@@ -61,6 +61,9 @@ export default function UbicarPage() {
                   <div className="text-white">
                     <div className="text-sm uppercase opacity-80">🎞️ POSICIÓN EN EL ROLLO</div>
                     <div className="text-7xl font-black mt-1">#{last.rollPosition}</div>
+                    {last.rollOrder && (
+                      <div className="text-sm opacity-90 mt-1">Orden: <b className="font-mono">{last.rollOrder}</b></div>
+                    )}
                     <div className="text-sm opacity-80 mt-1">Toma la etiqueta de esta posición y pégala al equipo/caja.</div>
                   </div>
                   <div className="rounded bg-black/30 p-3 text-white font-mono">
@@ -110,7 +113,7 @@ export default function UbicarPage() {
             {history.map((h, i) => (
               <li key={i} className={h.ok ? (h.rollPosition ? 'text-emerald-400' : 'text-yellow-400') : 'text-red-400'}>
                 {h.ok
-                  ? `${h.rollPosition ? '✓' : '⚠'} ${h.scanned} → ${h.inventario ?? h.equipment?.inventario ?? ''} ${h.rollPosition ? `· rollo #${h.rollPosition}` : '· NO en rollo'}`
+                  ? `${h.rollPosition ? '✓' : '⚠'} ${h.scanned} → ${h.inventario ?? h.equipment?.inventario ?? ''} ${h.rollPosition ? `· orden ${h.rollOrder ?? '?'} #${h.rollPosition}` : '· NO en rollo'}`
                   : `✗ ${h.scanned} · ${h.message ?? ''}`}
               </li>
             ))}

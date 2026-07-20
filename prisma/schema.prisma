@@ -61,20 +61,24 @@ model BoardSlot {
   occupiedAt    DateTime?
 }
 
-// Rollos de etiquetas: pila pre-cargada. Cada scan se guarda con consecutivo automático.
-// Se puede consumir en orden (FIFO) cuando pasa una computadora por la línea,
-// para no tener que buscar la etiqueta específica en la caja.
+// Rollos de etiquetas: pila pre-cargada AGRUPADA POR ORDEN.
+// Cada orden (número Dell o PO) tiene su propio contador (position) que empieza en 1.
+// Cuando se cambia de orden, la nueva orden arranca su contador desde 1.
 model LabelRoll {
-  id        Int      @id @default(autoincrement()) // consecutivo natural
-  value     String   // el código escaneado del rollo
-  status    String   @default("AVAILABLE") // AVAILABLE | CONSUMED
-  operator  String?
-  createdAt DateTime @default(now())
-  consumedAt DateTime?
-  consumedBy String?
+  id          Int      @id @default(autoincrement())
+  orderNumber String?  // número de orden Dell / PO — puede ser null para legacy
+  position    Int?     // contador 1..N dentro del mismo orderNumber
+  value       String   // el código escaneado del rollo
+  status      String   @default("AVAILABLE") // AVAILABLE | CONSUMED
+  operator    String?
+  createdAt   DateTime @default(now())
+  consumedAt  DateTime?
+  consumedBy  String?
 
   @@index([status])
   @@index([createdAt])
+  @@index([orderNumber])
+  @@index([value])
 }
 
 // Log de eventos (auditoría)

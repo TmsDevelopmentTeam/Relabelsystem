@@ -49,11 +49,18 @@ export async function POST(req: NextRequest) {
       target = equipos.find((e) => e.status === 'PENDING') ?? equipos[0];
     }
 
-    const rollEntry = await prisma.labelRoll.findFirst({
-      where: { value: inventarioResolved },
-      orderBy: { id: 'asc' },
-    });
-    const rollPosition = rollEntry?.id ?? null;
+    // Prefiere registros CON orderNumber (los más recientes con ordena); fallback a legacy sin orden
+    const rollEntry =
+      (await prisma.labelRoll.findFirst({
+        where: { value: inventarioResolved, orderNumber: { not: null } },
+        orderBy: { id: 'asc' },
+      })) ??
+      (await prisma.labelRoll.findFirst({
+        where: { value: inventarioResolved },
+        orderBy: { id: 'asc' },
+      }));
+    const rollPosition = rollEntry?.position ?? rollEntry?.id ?? null;
+    const rollOrder = rollEntry?.orderNumber ?? null;
 
     // Marcar como PAIR_READY (si estaba PENDING). No bloquear si ya avanzó.
     const shouldAdvance = target.status === 'PENDING';
@@ -76,6 +83,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       equipment: updated,
       rollPosition,
+      rollOrder,
       inventario: inventarioResolved,
       othersWithSameInventario: equipos.length - 1,
       alreadyPaired: !shouldAdvance,

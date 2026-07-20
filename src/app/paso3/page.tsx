@@ -64,6 +64,9 @@ export default function EtiquetarPage() {
                 <div className="rounded-xl bg-emerald-700 p-4 border-2 border-white">
                   <div className="text-xs uppercase opacity-90">🎞️ Posición en el rollo</div>
                   <div className="text-6xl font-black mt-1">#{last.rollPosition}</div>
+                  {last.rollOrder && (
+                    <div className="text-sm opacity-90 mt-1">Orden: <b className="font-mono">{last.rollOrder}</b></div>
+                  )}
                 </div>
               ) : (
                 <div className="rounded-xl bg-yellow-500 text-black p-3 text-sm">
@@ -98,7 +101,7 @@ export default function EtiquetarPage() {
             {history.map((h, i) => (
               <li key={i} className={h.ok ? 'text-emerald-400' : 'text-red-400'}>
                 {h.ok
-                  ? `✓ ${h.scanned} → ${h.inventario ?? ''} ${h.rollPosition ? `· rollo #${h.rollPosition}` : ''}`
+                  ? `✓ ${h.scanned} → ${h.inventario ?? ''} ${h.rollPosition ? `· orden ${h.rollOrder ?? '?'} #${h.rollPosition}` : ''}`
                   : `✗ ${h.scanned} · ${h.reason ?? ''}`}
               </li>
             ))}

@@ -1,44 +1,36 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Renumera los IDs de LabelRoll a 1..N conservando el orden de createdAt.
-// NO borra valores, solo renumera. Útil cuando los IDs quedaron "huecos" por deletes.
-export async function POST() {
-  const items = await prisma.labelRoll.findMany({ orderBy: { createdAt: 'asc' } });
+// Renumera `position` a 1..N dentro de cada orderNumber, por orden de createdAt.
+// Si se pasa ?order=X, solo renumera esa orden. Si no, todas.
+export async function POST(req: NextRequest) {
+  const order = req.nextUrl.searchParams.get('order');
 
-  // Estrategia SQLite: usar una tabla temporal, insertar con nuevos IDs, luego swap.
-  // Como Prisma no soporta bien esto multiplataforma, lo hago con un enfoque
-  // seguro: borrar todos, resetear el sequence, re-insertar en orden.
-  const values = items.map((i) => ({
-    value: i.value,
-    status: i.status,
-    operator: i.operator,
-    createdAt: i.createdAt,
-    consumedAt: i.consumedAt,
-    consumedBy: i.consumedBy,
-  }));
+  const orders = order
+    ? [order]
+    : (await prisma.labelRoll.findMany({
+        distinct: ['orderNumber'],
+        select: { orderNumber: true },
+      })).map((r) => r.orderNumber);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.labelRoll.deleteMany();
-    // Reset del autoincrement en SQLite
-    await tx.$executeRawUnsafe(`DELETE FROM sqlite_sequence WHERE name = 'LabelRoll'`).catch(() => {});
-    // Re-insertar uno por uno en orden — createMany no garantiza orden en SQLite
-    for (const v of values) {
-      await tx.labelRoll.create({ data: v });
+  const result: any[] = [];
+  for (const on of orders) {
+    if (on == null) continue;
+    const items = await prisma.labelRoll.findMany({
+      where: { orderNumber: on },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    for (let i = 0; i < items.length; i++) {
+      await prisma.labelRoll.update({
+        where: { id: items[i].id },
+        data: { position: i + 1 },
+      });
     }
-  });
-
-  const total = await prisma.labelRoll.count();
-  const first = await prisma.labelRoll.findFirst({ orderBy: { id: 'asc' } });
-  const last = await prisma.labelRoll.findFirst({ orderBy: { id: 'desc' } });
-
-  return NextResponse.json({
-    ok: true,
-    total,
-    firstId: first?.id ?? null,
-    lastId: last?.id ?? null,
-  });
+    result.push({ orderNumber: on, renumbered: items.length });
+  }
+  return NextResponse.json({ ok: true, result });
 }
