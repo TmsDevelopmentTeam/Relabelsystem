@@ -1,0 +1,48 @@
+name: Deploy to VPS
+
+# Se dispara en cada push a main, o manualmente desde la pestaña Actions.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy por SSH al VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script_stop: true
+          script: |
+            set -e
+            export PATH="$HOME/.nvm/versions/node/$(ls $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:$PATH" || true
+            cd ${{ secrets.VPS_APP_DIR }}
+
+            echo "==> Bajando cambios de main"
+            git fetch --all
+            git reset --hard origin/main
+
+            echo "==> Instalando dependencias"
+            npm ci
+
+            echo "==> Prisma (genera cliente y sincroniza schema, NO borra datos)"
+            npx prisma generate
+            npx prisma db push
+
+            echo "==> Build de produccion"
+            npm run build
+
+            echo "==> Reiniciando con PM2"
+            pm2 reload relabelsystem --update-env || pm2 start "npm run start" --name relabelsystem
+            pm2 save
+
+            echo "==> Deploy OK"

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ScanInput, beepOK, siren, useOperator } from '@/components/ScanInput';
+import { ScanInput, beepOK, useOperator } from '@/components/ScanInput';
 
 type Step = 'small' | 'asset' | 'big' | 'result';
 
