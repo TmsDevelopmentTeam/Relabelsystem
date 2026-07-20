@@ -100,7 +100,7 @@ export default function DashboardPage() {
             <thead className="text-left text-slate-500 border-b border-slate-800">
               <tr>
                 <th className="py-2">Hora</th><th>Paso</th><th>Asset</th><th>Inventario</th>
-                <th>Caja</th><th>Cuadr.</th><th>Op.</th><th>Result</th><th>Msg</th>
+                <th>Caja</th><th>Result</th><th>Msg</th>
               </tr>
             </thead>
             <tbody className="font-mono text-xs">
@@ -111,8 +111,6 @@ export default function DashboardPage() {
                   <td>{e.assetTag ?? '-'}</td>
                   <td>{e.inventario ?? '-'}</td>
                   <td>{e.boxLabel ?? '-'}</td>
-                  <td>{e.boardCell ?? '-'}</td>
-                  <td>{e.operator ?? '-'}</td>
                   <td className={e.result === 'OK' ? 'text-emerald-400' : 'text-red-400'}>{e.result}</td>
                   <td className="text-slate-500 truncate max-w-xs">{e.message ?? ''}</td>
                 </tr>
