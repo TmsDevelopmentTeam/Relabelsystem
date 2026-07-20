@@ -97,13 +97,20 @@ export async function POST(req: NextRequest) {
     const buf = Buffer.from(await file.arrayBuffer());
     const wb = XLSX.read(buf, { type: 'buffer' });
 
-    // Sheets con equipos: "Equipo computo central" y "Equipo de respaldo"
+    // Sheets con equipos. Formatos soportados:
+    //   - "Equipo computo central" y "Equipo de respaldo" (formato antiguo, 2 sheets)
+    //   - "Equipo universal" (formato final, 1 sheet)
+    //   - "Reporte" (formato inicial)
+    // Cualquier sheet cuyo nombre incluya "equipo" o "reporte" es candidato.
     const targetSheets = wb.SheetNames.filter((n) => {
       const nl = n.toLowerCase();
-      return nl.includes('computo') || nl.includes('respaldo') || nl.includes('reporte');
+      return nl.includes('equipo') || nl.includes('computo') || nl.includes('respaldo') || nl.includes('reporte') || nl.includes('universal');
     });
     if (!targetSheets.length) {
-      return NextResponse.json({ error: 'No se encontró sheet de equipos' }, { status: 400 });
+      return NextResponse.json(
+        { error: `No se encontró sheet de equipos. Sheets disponibles: ${wb.SheetNames.join(', ')}` },
+        { status: 400 },
+      );
     }
 
     const summaries: any[] = [];
