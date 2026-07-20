@@ -89,14 +89,6 @@ export default function RollosPage() {
     setWrongOrder(null);
   }
 
-  async function fixAllOrders() {
-    if (!confirm('¿Reasignar todos los rollos a su orden correcta según el Excel? Los que ya estén bien no cambian.')) return;
-    const res = await fetch('/api/rollos/fix-orders', { method: 'POST' });
-    const j = await res.json();
-    alert(`Movidos: ${j.moved}\nSin cambio: ${j.unchanged}\nSin equipo (huérfanos): ${j.orphansCount}`);
-    load(); loadInfo(); loadSummary();
-  }
-
   async function deleteOne(id: number) {
     if (!confirm(`¿Borrar la entrada #${id}?`)) return;
     await fetch(`/api/rollos?id=${id}`, { method: 'DELETE' });
@@ -115,16 +107,7 @@ export default function RollosPage() {
     load(); loadInfo();
   }
 
-  async function migrateLegacy() {
-    if (!confirm('¿Asignar orden automáticamente a los rollos sin orden? Se busca cada etiqueta en el catálogo importado y se le pone su Orden Dell correspondiente.')) return;
-    const res = await fetch('/api/rollos/assign-legacy', { method: 'POST' });
-    const j = await res.json();
-    alert(`Migrados: ${j.migrated}\nSin orden encontrada: ${j.skipped}`);
-    loadSummary(); if (orderNumber) { load(); loadInfo(); }
-  }
-
   const nextPosition = (data?.count ?? 0) + 1;
-  const legacyCount = ordersSummary?.orders.find((o) => o.orderNumber === null)?.count ?? 0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -260,18 +243,6 @@ export default function RollosPage() {
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
           <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
             <div className="text-sm text-slate-400">📊 Resumen por orden</div>
-            <div className="flex gap-2 flex-wrap">
-              <button onClick={fixAllOrders}
-                className="rounded bg-rose-700 hover:bg-rose-600 px-3 py-1 text-white text-xs font-bold">
-                🔧 Corregir órdenes (reasigna según Excel)
-              </button>
-              {legacyCount > 0 && (
-                <button onClick={migrateLegacy}
-                  className="rounded bg-amber-700 hover:bg-amber-600 px-3 py-1 text-white text-xs font-bold">
-                  ⚙️ Migrar {legacyCount} sin orden
-                </button>
-              )}
-            </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {ordersSummary.orders.map((o) => (
