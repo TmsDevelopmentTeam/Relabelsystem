@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
 // AM2150010900 → posición 49 de 100.
 export async function GET(req: NextRequest) {
   const assetTag = norm(req.nextUrl.searchParams.get('assetTag'));
+  const expectedOrder = req.nextUrl.searchParams.get('order')?.trim() || null;
   if (!assetTag) return NextResponse.json({ ok: false, message: 'Falta assetTag' }, { status: 400 });
 
   const eq = await prisma.equipment.findUnique({
@@ -26,6 +27,21 @@ export async function GET(req: NextRequest) {
   const orderNumber = eq.ordenDell ?? eq.po ?? null;
   if (!orderNumber) {
     return NextResponse.json({ ok: false, reason: 'NO_ORDER', message: 'El equipo no tiene orden Dell ni PO.' });
+  }
+
+  // Validar que la orden esperada coincida con la orden real del equipo
+  if (expectedOrder && orderNumber !== expectedOrder) {
+    return NextResponse.json({
+      ok: false,
+      reason: 'WRONG_ORDER',
+      message: `Este equipo pertenece a la orden ${orderNumber}, no a ${expectedOrder}.`,
+      assetTag: eq.assetTag,
+      inventario: eq.inventario,
+      producto: eq.producto,
+      equipmentType: eq.equipmentType,
+      realOrder: orderNumber,
+      expectedOrder,
+    });
   }
 
   const siblings = await prisma.equipment.findMany({
