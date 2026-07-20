@@ -5,13 +5,12 @@ import { norm } from '@/lib/normalize';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Escanea Asset Tag (SN Dell). Devuelve la posición del ROLLO pre-escaneado
-// dentro de la orden del equipo. Es decir, #1..#N según cómo se escanearon
-// los rollos en /rollos (LabelRoll.position).
+// Escanea Asset Tag. Devuelve la posición 1..N ordenando los equipos de su
+// orden por INVENTARIO (AM/EQR) ascendente. 1 = inventario más bajo, N = más alto.
 //
-// Ejemplo: Asset CVYPSC4 → inventario AM2150010900, orden 1031673962.
-// Si en /rollos ya se escanearon 100 etiquetas de esa orden en cierto orden,
-// devuelve la position que le corresponde a AM2150010900 en LabelRoll.
+// Ejemplo: orden 1031673969 tiene 100 monitores con inventarios
+// AM2150010852..AM2150010951. Si escaneas el Asset Tag cuyo inventario es
+// AM2150010900 → posición 49 de 100.
 export async function GET(req: NextRequest) {
   const assetTag = norm(req.nextUrl.searchParams.get('assetTag'));
   if (!assetTag) return NextResponse.json({ ok: false, message: 'Falta assetTag' }, { status: 400 });
@@ -25,40 +24,18 @@ export async function GET(req: NextRequest) {
   }
 
   const orderNumber = eq.ordenDell ?? eq.po ?? null;
-
-  // Buscar la etiqueta en LabelRoll (preferentemente en la orden del equipo)
-  let rollEntry = null;
-  if (orderNumber) {
-    rollEntry = await prisma.labelRoll.findFirst({
-      where: { value: eq.inventario, orderNumber },
-      orderBy: { position: 'asc' },
-    });
-  }
-  if (!rollEntry) {
-    // Fallback: buscar en cualquier orden
-    rollEntry = await prisma.labelRoll.findFirst({
-      where: { value: eq.inventario },
-      orderBy: { position: 'asc' },
-    });
+  if (!orderNumber) {
+    return NextResponse.json({ ok: false, reason: 'NO_ORDER', message: 'El equipo no tiene orden Dell ni PO.' });
   }
 
-  const totalInOrder = orderNumber
-    ? await prisma.labelRoll.count({ where: { orderNumber } })
-    : 0;
+  const siblings = await prisma.equipment.findMany({
+    where: { OR: [{ ordenDell: orderNumber }, { po: orderNumber }] },
+    orderBy: { inventario: 'asc' },
+    select: { assetTag: true, inventario: true },
+  });
 
-  if (!rollEntry) {
-    return NextResponse.json({
-      ok: false,
-      reason: 'NOT_IN_ROLL',
-      message: `La etiqueta ${eq.inventario} de este equipo aún no está escaneada en el rollo. Ve a 🎞️ Rollos y escánenla primero.`,
-      assetTag: eq.assetTag,
-      inventario: eq.inventario,
-      producto: eq.producto,
-      equipmentType: eq.equipmentType,
-      orderNumber,
-      totalInOrder,
-    });
-  }
+  const position = siblings.findIndex((s) => s.assetTag === assetTag) + 1;
+  const totalInOrder = siblings.length;
 
   return NextResponse.json({
     ok: true,
@@ -67,8 +44,9 @@ export async function GET(req: NextRequest) {
     producto: eq.producto,
     equipmentType: eq.equipmentType,
     orderNumber,
-    rollOrder: rollEntry.orderNumber,
-    position: rollEntry.position ?? null,
+    position,
     totalInOrder,
+    firstInventario: siblings[0]?.inventario ?? null,
+    lastInventario: siblings[siblings.length - 1]?.inventario ?? null,
   });
 }
