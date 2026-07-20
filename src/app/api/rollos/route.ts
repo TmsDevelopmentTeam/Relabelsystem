@@ -6,16 +6,58 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // POST: escanear una etiqueta del rollo → se guarda con position consecutivo DENTRO del orderNumber.
+// VALIDA que la etiqueta pertenezca a esa orden (por Equipment.ordenDell). Si no, retorna WRONG_ORDER.
+// Con { force: true } se puede saltar la validación (para casos excepcionales).
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const value = norm(body?.value);
     const operator = String(body?.operator ?? 'unknown');
     const orderNumber = String(body?.orderNumber ?? '').trim() || null;
+    const force = !!body?.force;
     if (!value) return NextResponse.json({ ok: false, message: 'Vacío' }, { status: 400 });
     if (!orderNumber) return NextResponse.json({ ok: false, message: 'Falta número de orden' }, { status: 400 });
 
-    // Calcular la siguiente posición para esta orden
+    // Validación: la etiqueta debe pertenecer a ESTA orden según el Excel.
+    // Ojo: una misma etiqueta puede aparecer en múltiples órdenes (Monitor + CPU
+    // comparten el activo pero pueden ser de ordenes Dell distintas). Se acepta
+    // si existe AL MENOS UN equipo en la orden actual con este inventario.
+    if (!force) {
+      const eqInThisOrder = await prisma.equipment.findFirst({
+        where: {
+          inventario: value,
+          OR: [{ ordenDell: orderNumber }, { po: orderNumber }],
+        },
+        select: { assetTag: true, producto: true, equipmentType: true },
+      });
+      if (!eqInThisOrder) {
+        // No existe en la orden actual → ¿existe en otra?
+        const eqOther = await prisma.equipment.findFirst({
+          where: { inventario: value },
+          select: { ordenDell: true, po: true, assetTag: true, producto: true },
+        });
+        if (!eqOther) {
+          return NextResponse.json({
+            ok: false,
+            reason: 'NOT_IN_CATALOG',
+            message: `La etiqueta ${value} no existe en el Excel importado.`,
+            scanned: value,
+          });
+        }
+        const otherOrder = eqOther.ordenDell ?? eqOther.po ?? null;
+        return NextResponse.json({
+          ok: false,
+          reason: 'WRONG_ORDER',
+          message: `Esta etiqueta NO está en la orden ${orderNumber}. Existe en la orden ${otherOrder}.`,
+          scanned: value,
+          expectedOrder: otherOrder,
+          currentOrder: orderNumber,
+          equipment: { assetTag: eqOther.assetTag, producto: eqOther.producto },
+        });
+      }
+    }
+
+    // Ya validado (o forzado): guardar
     const lastForOrder = await prisma.labelRoll.findFirst({
       where: { orderNumber },
       orderBy: { position: 'desc' },

@@ -17,6 +17,7 @@ export default function RollosPage() {
   const [data, setData] = useState<{ order: string; items: Entry[]; count: number; available: number; consumed: number } | null>(null);
   const [ordersSummary, setOrdersSummary] = useState<{ orders: { orderNumber: string | null; count: number }[]; overall: number } | null>(null);
   const [lastId, setLastId] = useState<number | null>(null);
+  const [wrongOrder, setWrongOrder] = useState<{ scanned: string; expectedOrder: string; equipment: any } | null>(null);
 
   useEffect(() => {
     setOperator(op.get());
@@ -50,24 +51,50 @@ export default function RollosPage() {
     setOrdersSummary(await res.json());
   }
 
-  async function submit() {
-    if (!value.trim() || busy) return;
+  async function submit(force = false) {
+    const scannedVal = value.trim();
+    if (!scannedVal || busy) return;
     if (!orderNumber.trim()) { alert('Selecciona una orden arriba'); return; }
     setBusy(true);
     try {
       const res = await fetch('/api/rollos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value, operator, orderNumber }),
+        body: JSON.stringify({ value: scannedVal, operator, orderNumber, force }),
       });
       const json = await res.json();
       if (json.ok) {
         beepOK();
         setLastId(json.entry.id);
+        setWrongOrder(null);
         await load(); await loadInfo(); await loadSummary();
-      } else siren();
-      setValue('');
+        setValue('');
+      } else if (json.reason === 'WRONG_ORDER') {
+        siren();
+        setWrongOrder({ scanned: json.scanned, expectedOrder: json.expectedOrder, equipment: json.equipment });
+      } else if (json.reason === 'NOT_IN_CATALOG') {
+        siren();
+        alert(`⚠️ ${json.message}`);
+        setValue('');
+      } else {
+        siren();
+      }
     } catch { siren(); } finally { setBusy(false); }
+  }
+
+  async function acceptWrongOrder() {
+    if (!wrongOrder) return;
+    saveOrder(wrongOrder.expectedOrder);
+    setTimeout(() => submit(false), 200);
+    setWrongOrder(null);
+  }
+
+  async function fixAllOrders() {
+    if (!confirm('¿Reasignar todos los rollos a su orden correcta según el Excel? Los que ya estén bien no cambian.')) return;
+    const res = await fetch('/api/rollos/fix-orders', { method: 'POST' });
+    const j = await res.json();
+    alert(`Movidos: ${j.moved}\nSin cambio: ${j.unchanged}\nSin equipo (huérfanos): ${j.orphansCount}`);
+    load(); loadInfo(); loadSummary();
   }
 
   async function deleteOne(id: number) {
@@ -193,8 +220,38 @@ export default function RollosPage() {
           <label className="block text-lg text-slate-200 mb-3">
             Escanea etiqueta → <span className="text-teal-400">orden {orderNumber} · posición #{nextPosition}</span>
           </label>
-          <ScanInput value={value} onChange={setValue} onSubmit={submit} disabled={busy}
+          <ScanInput value={value} onChange={setValue} onSubmit={() => submit(false)} disabled={busy}
             placeholder="Etiqueta…" borderColor="border-teal-500" armed={true}/>
+        </div>
+      )}
+
+      {/* Alerta: etiqueta pertenece a otra orden */}
+      {wrongOrder && (
+        <div className="rounded-lg bg-red-700 p-5 text-white border-4 border-white">
+          <div className="text-2xl font-black mb-2">🚨 Etiqueta de OTRA orden</div>
+          <div className="mb-3">
+            La etiqueta <b className="font-mono text-xl">{wrongOrder.scanned}</b> pertenece a la orden{' '}
+            <b className="font-mono text-xl">{wrongOrder.expectedOrder}</b>, no a {orderNumber}.
+          </div>
+          {wrongOrder.equipment && (
+            <div className="text-sm opacity-90 mb-3">
+              Equipo: {wrongOrder.equipment.producto} · Asset Tag: {wrongOrder.equipment.assetTag}
+            </div>
+          )}
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={acceptWrongOrder}
+              className="rounded bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-white font-bold">
+              ✓ Cambiar a orden {wrongOrder.expectedOrder} y guardar
+            </button>
+            <button onClick={() => { submit(true); }}
+              className="rounded bg-yellow-600 hover:bg-yellow-500 px-4 py-2 text-white font-bold">
+              ⚠️ Forzar en orden {orderNumber}
+            </button>
+            <button onClick={() => { setWrongOrder(null); setValue(''); }}
+              className="rounded bg-slate-700 hover:bg-slate-600 px-4 py-2 text-white">
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
 
@@ -203,12 +260,18 @@ export default function RollosPage() {
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
           <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
             <div className="text-sm text-slate-400">📊 Resumen por orden</div>
-            {legacyCount > 0 && (
-              <button onClick={migrateLegacy}
-                className="rounded bg-amber-700 hover:bg-amber-600 px-3 py-1 text-white text-xs font-bold">
-                ⚙️ Migrar {legacyCount} sin orden → asignar automático
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={fixAllOrders}
+                className="rounded bg-rose-700 hover:bg-rose-600 px-3 py-1 text-white text-xs font-bold">
+                🔧 Corregir órdenes (reasigna según Excel)
               </button>
-            )}
+              {legacyCount > 0 && (
+                <button onClick={migrateLegacy}
+                  className="rounded bg-amber-700 hover:bg-amber-600 px-3 py-1 text-white text-xs font-bold">
+                  ⚙️ Migrar {legacyCount} sin orden
+                </button>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {ordersSummary.orders.map((o) => (
