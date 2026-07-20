@@ -14,6 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <nav className="border-b border-slate-800 bg-slate-950/70 backdrop-blur px-4 py-3 flex gap-4 items-center flex-wrap text-sm">
           <Link href="/" className="font-bold text-base text-white">Relabelsystem</Link>
           <Link href="/rollos" className="hover:text-white text-slate-300">🎞️ Rollos</Link>
+          <Link href="/posicion" className="hover:text-white text-slate-300">🔎 Posición</Link>
           <Link href="/paso2" className="hover:text-white text-slate-300">① Ubicar</Link>
           <Link href="/paso3" className="hover:text-white text-slate-300">② Etiquetar</Link>
           <Link href="/paso4" className="hover:text-white text-slate-300">③ Match</Link>
