@@ -1,22 +1,6 @@
 import Link from 'next/link';
 
-async function getNetwork() {
-  try {
-    const os = await import('os');
-    const ifaces = os.networkInterfaces();
-    const ips: string[] = [];
-    for (const list of Object.values(ifaces)) {
-      if (!list) continue;
-      for (const i of list) if (i.family === 'IPv4' && !i.internal) ips.push(i.address);
-    }
-    return { ips, port: process.env.PORT ?? '3000' };
-  } catch {
-    return { ips: [], port: '3000' };
-  }
-}
-
-export default async function Home() {
-  const net = await getNetwork();
+export default function Home() {
   const steps = [
     { href: '/paso1', title: '① TAG', desc: 'Escanea Asset Tags → los ubica en cuadrantes del tablero.', color: 'from-sky-600 to-sky-800' },
     { href: '/paso2', title: '② PAIR', desc: 'Escanea etiquetas grandes → sistema dice cuadrante donde va (arma paquetes).', color: 'from-amber-600 to-amber-800' },
@@ -64,18 +48,6 @@ export default async function Home() {
           <li>El cursor vuelve solo al input — sigue disparando el siguiente.</li>
         </ol>
       </div>
-
-      {net.ips.length > 0 && (
-        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4 text-sm">
-          <div className="font-bold text-white mb-2">🌐 Acceso multi-PC (misma red WiFi/LAN)</div>
-          <div className="text-slate-400 mb-2">Desde la otra PC abre el navegador en:</div>
-          <ul className="space-y-1 font-mono">
-            {net.ips.map((ip) => (
-              <li key={ip} className="text-emerald-400">http://{ip}:{net.port}</li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
