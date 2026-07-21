@@ -90,6 +90,19 @@ export default function CamaPage() {
     : -1;
   const nextItem = currentIdx >= 0 && orderList ? orderList.items[currentIdx + 1] ?? null : null;
 
+  // Detectar si la orden actual está completa (todos sus items en scannedIds)
+  const currentOrderDone = !!orderList && orderList.items.length > 0
+    && orderList.items.every((i) => scannedIds.has(i.assetTag));
+
+  // Siguiente orden a trabajar: la primera pendiente/en progreso en el panel de órdenes
+  const nextOrder = currentOrderDone
+    ? allOrders.find((o) => {
+        if (o.orderNumber === orderList?.order) return false;
+        const doneCount = o.assetTags.filter((t) => scannedIds.has(t)).length;
+        return doneCount < o.total;
+      })
+    : null;
+
   return (
     <div className="max-w-6xl mx-auto space-y-4">
       <div className="flex justify-between items-start flex-wrap gap-2">
@@ -266,8 +279,23 @@ export default function CamaPage() {
         </div>
 
         {/* Panel lateral: lista de la orden */}
-        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <div className="text-sm text-slate-400 mb-2">
+        <div className={`rounded-lg border p-4 ${currentOrderDone ? 'border-emerald-500 bg-emerald-950/40' : 'border-slate-700 bg-slate-900'}`}>
+          {currentOrderDone && (
+            <div className="rounded bg-emerald-600 text-white p-3 mb-3 font-bold">
+              ✅ ORDEN {orderList?.order} COMPLETA ({orderList?.total}/{orderList?.total})
+              {nextOrder && (
+                <div className="text-sm font-normal mt-1">
+                  ➡️ Siguiente orden pendiente:{' '}
+                  <button onClick={() => loadOrderList(nextOrder.orderNumber)}
+                    className="underline font-bold hover:no-underline">
+                    {nextOrder.orderNumber}
+                  </button>
+                  {' '}({nextOrder.assetTags.filter((t) => scannedIds.has(t)).length}/{nextOrder.total})
+                </div>
+              )}
+            </div>
+          )}
+          <div className={`text-sm mb-2 ${currentOrderDone ? 'text-emerald-300' : 'text-slate-400'}`}>
             📋 Orden {orderList?.order ?? '—'} · {orderList?.total ?? 0} equipos
           </div>
           {orderList ? (
