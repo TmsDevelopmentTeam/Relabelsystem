@@ -15,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/" className="font-bold text-base text-white">Relabelsystem</Link>
           <Link href="/rollos" className="hover:text-white text-slate-300">🎞️ Rollos</Link>
           <Link href="/posicion" className="hover:text-white text-slate-300">🔎 Posición</Link>
+          <Link href="/cama" className="hover:text-white text-slate-300">🛏️ Cama</Link>
           <Link href="/paso2" className="hover:text-white text-slate-300">① Ubicar</Link>
           <Link href="/paso3" className="hover:text-white text-slate-300">② Etiquetar</Link>
           <Link href="/paso4" className="hover:text-white text-slate-300">③ Match</Link>

@@ -7,6 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Ubicación física del equipo en almacén (Cama / Position / Pallet).
+// Módulo independiente del flujo de etiquetado. Se importa de otro Excel.
+model Ubicacion {
+  id          Int      @id @default(autoincrement())
+  po          String?
+  ordenDell   String?
+  producto    String?
+  cantidad    Int?
+  partida     String?
+  descripcion String?
+  assetTag    String   @unique   // SERIE (SN Dell)
+  inventario  String              // INVENTARIO (AM/EQR)
+  cama        String?             // Cama
+  position    String?             // Position
+  pallet      String?             // Pallet
+  createdAt   DateTime @default(now())
+
+  @@index([inventario])
+  @@index([partida])
+  @@index([ordenDell])
+}
+
 // Un equipo del inventario. Los números vienen ya normalizados a 12 chars en el Excel nuevo.
 model Equipment {
   id            Int      @id @default(autoincrement())
