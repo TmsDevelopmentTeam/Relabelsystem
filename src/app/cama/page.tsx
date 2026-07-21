@@ -25,6 +25,8 @@ export default function CamaPage() {
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
   const [showImport, setShowImport] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState<'idle'|'uploading'|'processing'|'done'>('idle');
 
   useEffect(() => { setOperator(op.get()); loadAllOrders(); }, []);
 
@@ -72,27 +74,44 @@ export default function CamaPage() {
   async function doImport() {
     if (!file) return;
     setImportBusy(true); setImportResult(null);
-    try {
+    setUploadPct(0); setUploadPhase('uploading');
+
+    await new Promise<void>((resolve) => {
       const fd = new FormData();
       fd.append('file', file);
       if (wipe) fd.append('wipe', 'true');
-      const res = await fetch('/api/cama/import', { method: 'POST', body: fd });
-      const text = await res.text();
-      let json: any;
-      try { json = JSON.parse(text); } catch {
-        // Respuesta no-JSON (probablemente Nginx 413/504 con HTML)
-        if (res.status === 413) {
-          json = { error: `Archivo muy grande (${(file.size/1024/1024).toFixed(1)} MB). El server aún no acepta este tamaño. Pide al admin subir client_max_body_size a 100M o más.` };
-        } else if (res.status === 504) {
-          json = { error: 'Timeout del server (504). El archivo es tan grande que tardó demasiado en procesarse. Divide por partidas o pide al admin subir proxy_read_timeout.' };
-        } else {
-          json = { error: `Server respondió ${res.status} pero no en JSON. Contenido: ${text.slice(0, 200)}` };
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/cama/import');
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setUploadPct(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.upload.onload = () => setUploadPhase('processing');
+      xhr.onload = () => {
+        const status = xhr.status;
+        const text = xhr.responseText;
+        let json: any;
+        try { json = JSON.parse(text); } catch {
+          if (status === 413) {
+            json = { error: `Archivo muy grande (${(file.size/1024/1024).toFixed(1)} MB). El server aún no acepta este tamaño. Pide al admin subir client_max_body_size a 100M o más.` };
+          } else if (status === 504) {
+            json = { error: 'Timeout del server (504). El archivo es tan grande que tardó demasiado en procesarse.' };
+          } else {
+            json = { error: `Server respondió ${status} pero no en JSON. Contenido: ${text.slice(0, 200)}` };
+          }
         }
-      }
-      setImportResult(json);
-    } catch (e:any) {
-      setImportResult({ error: e?.message ?? 'Error' });
-    } finally { setImportBusy(false); }
+        setImportResult(json);
+        setUploadPhase('done');
+        setImportBusy(false);
+        resolve();
+      };
+      xhr.onerror = () => {
+        setImportResult({ error: 'Error de red durante el upload' });
+        setUploadPhase('done');
+        setImportBusy(false);
+        resolve();
+      };
+      xhr.send(fd);
+    });
   }
 
   // Index del item actual en la lista y siguiente
@@ -149,6 +168,31 @@ export default function CamaPage() {
             className="rounded bg-sky-600 hover:bg-sky-500 px-4 py-2 text-white font-bold disabled:opacity-50">
             {importBusy ? 'Importando…' : 'Importar'}
           </button>
+
+          {importBusy && (
+            <div className="rounded bg-slate-950 border border-slate-700 p-3 space-y-2">
+              <div className="flex justify-between text-xs text-slate-300">
+                <span>
+                  {uploadPhase === 'uploading' && `📤 Subiendo archivo… (${uploadPct}%)`}
+                  {uploadPhase === 'processing' && '⚙️ Procesando sheets en el servidor…'}
+                </span>
+                <span className="font-mono text-slate-400">
+                  {file && `${(file.size/1024/1024).toFixed(1)} MB`}
+                </span>
+              </div>
+              <div className="h-3 bg-slate-800 rounded overflow-hidden">
+                {uploadPhase === 'uploading' ? (
+                  <div className="h-full bg-sky-500 transition-all" style={{ width: `${uploadPct}%` }}/>
+                ) : (
+                  // Barra indeterminada (procesando en server)
+                  <div className="h-full bg-gradient-to-r from-sky-500 via-cyan-400 to-sky-500 animate-pulse w-full"/>
+                )}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {uploadPhase === 'processing' && 'Puede tardar hasta 1-2 min según cantidad de rows. No cierres esta ventana.'}
+              </div>
+            </div>
+          )}
           {importResult && (
             <div className={`rounded p-3 text-sm ${importResult.ok ? 'bg-emerald-950 text-emerald-100' : 'bg-red-950 text-red-100'}`}>
               {importResult.ok ? (
