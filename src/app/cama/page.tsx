@@ -90,9 +90,24 @@ export default function CamaPage() {
           </button>
           {importResult && (
             <div className={`rounded p-3 text-sm ${importResult.ok ? 'bg-emerald-950 text-emerald-100' : 'bg-red-950 text-red-100'}`}>
-              {importResult.ok
-                ? `Sheet: ${importResult.sheet} · Insertados: ${importResult.inserted} · Total en DB: ${importResult.totalInDB}`
-                : `Error: ${importResult.error}`}
+              {importResult.ok ? (
+                <>
+                  <div><b>Total en DB:</b> {importResult.totalInDB}</div>
+                  <div className="mt-1"><b>Sheets procesados:</b></div>
+                  <ul className="list-disc pl-5">
+                    {importResult.summaries.map((s:any) => (
+                      <li key={s.sheet}>
+                        <b>{s.sheet}</b>: {s.recordsValid} filas · {s.inserted} nuevas · {s.updated} actualizadas
+                      </li>
+                    ))}
+                  </ul>
+                  {importResult.skippedSheets?.length > 0 && (
+                    <div className="mt-2 text-xs opacity-80">
+                      Sheets omitidos (sin columnas Cama/Position/Pallet/Serie/Inventario): {importResult.skippedSheets.join(', ')}
+                    </div>
+                  )}
+                </>
+              ) : `Error: ${importResult.error}`}
             </div>
           )}
         </div>
