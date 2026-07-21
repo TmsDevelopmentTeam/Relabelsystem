@@ -237,56 +237,26 @@ export default function CamaPage() {
         </div>
       )}
 
-      {/* Panel de órdenes */}
-      {allOrders.length > 0 && (
-        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <div className="text-sm text-slate-400 mb-2">
-            📋 Órdenes ({allOrders.length}) — verde = completa, naranja = en progreso
-          </div>
-          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-2">
-            {allOrders.map((o) => {
-              const doneCount = o.assetTags.filter((t) => scannedIds.has(t)).length;
-              const isDone = doneCount === o.total;
-              const isInProgress = doneCount > 0 && !isDone;
-              const isCurrent = last?.ok && last.ordenDell === o.orderNumber;
-              let cls = 'rounded p-2 text-xs border transition';
-              if (isDone) cls += ' bg-emerald-700 border-emerald-300 text-white font-bold';
-              else if (isCurrent) cls += ' bg-orange-500 border-white text-white font-bold ring-2 ring-white';
-              else if (isInProgress) cls += ' bg-amber-800 border-amber-500 text-amber-100';
-              else cls += ' bg-slate-950 border-slate-700 text-slate-400';
-              return (
-                <button key={o.orderNumber}
-                  onClick={() => loadOrderList(o.orderNumber)}
-                  className={cls}>
-                  <div className="font-mono truncate">{o.orderNumber}</div>
-                  <div>{doneCount}/{o.total} {isDone && '✓'}</div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Layout: resultado + panel lateral */}
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           {last && (
             <div className={`rounded-lg p-6 ${last.ok ? 'bg-orange-600' : 'bg-red-700'} text-white`}>
               {last.ok ? (
-                <div className="space-y-3">
-                  {/* NUEVO ORDEN: Pallet → Cama → Position */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-xl bg-black/40 p-4 border-2 border-white text-center">
-                      <div className="text-xs uppercase opacity-70">📦 PALLET</div>
-                      <div className="text-6xl font-black mt-1">{last.pallet ?? '—'}</div>
+                <div className="space-y-4">
+                  {/* Tarjetas GIGANTES: Pallet → Cama → Position */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="rounded-2xl bg-black/40 p-6 border-4 border-white text-center shadow-2xl">
+                      <div className="text-base uppercase opacity-80 font-bold">📦 PALLET</div>
+                      <div className="text-9xl font-black mt-2 leading-none">{last.pallet ?? '—'}</div>
                     </div>
-                    <div className="rounded-xl bg-black/40 p-4 border-2 border-white text-center">
-                      <div className="text-xs uppercase opacity-70">🛏️ CAMA</div>
-                      <div className="text-6xl font-black mt-1">{last.cama ?? '—'}</div>
+                    <div className="rounded-2xl bg-black/40 p-6 border-4 border-white text-center shadow-2xl">
+                      <div className="text-base uppercase opacity-80 font-bold">🛏️ CAMA</div>
+                      <div className="text-9xl font-black mt-2 leading-none">{last.cama ?? '—'}</div>
                     </div>
-                    <div className="rounded-xl bg-black/40 p-4 border-2 border-white text-center">
-                      <div className="text-xs uppercase opacity-70">📍 POSITION</div>
-                      <div className="text-6xl font-black mt-1">{last.position ?? '—'}</div>
+                    <div className="rounded-2xl bg-black/40 p-6 border-4 border-white text-center shadow-2xl">
+                      <div className="text-base uppercase opacity-80 font-bold">📍 POSITION</div>
+                      <div className="text-9xl font-black mt-2 leading-none">{last.position ?? '—'}</div>
                     </div>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
@@ -386,6 +356,36 @@ export default function CamaPage() {
           )}
         </div>
       </div>
+
+      {/* Panel de órdenes (abajo) */}
+      {allOrders.length > 0 && (
+        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+          <div className="text-sm text-slate-400 mb-2">
+            📋 Órdenes ({allOrders.length}) — verde = completa, naranja = en progreso
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-2">
+            {allOrders.map((o) => {
+              const doneCount = o.assetTags.filter((t) => scannedIds.has(t)).length;
+              const isDone = doneCount === o.total;
+              const isInProgress = doneCount > 0 && !isDone;
+              const isCurrent = last?.ok && last.ordenDell === o.orderNumber;
+              let cls = 'rounded p-2 text-xs border transition';
+              if (isDone) cls += ' bg-emerald-700 border-emerald-300 text-white font-bold';
+              else if (isCurrent) cls += ' bg-orange-500 border-white text-white font-bold ring-2 ring-white';
+              else if (isInProgress) cls += ' bg-amber-800 border-amber-500 text-amber-100';
+              else cls += ' bg-slate-950 border-slate-700 text-slate-400';
+              return (
+                <button key={o.orderNumber}
+                  onClick={() => loadOrderList(o.orderNumber)}
+                  className={cls}>
+                  <div className="font-mono truncate">{o.orderNumber}</div>
+                  <div>{doneCount}/{o.total} {isDone && '✓'}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
