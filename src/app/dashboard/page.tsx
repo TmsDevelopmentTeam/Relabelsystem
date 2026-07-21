@@ -4,11 +4,33 @@ import { useEffect, useState } from 'react';
 
 export default function DashboardPage() {
   const [s, setS] = useState<any>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetInput, setResetInput] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetCountdown, setResetCountdown] = useState(5);
+
   async function load() {
     const res = await fetch('/api/stats', { cache: 'no-store' });
     setS(await res.json());
   }
   useEffect(() => { load(); const iv = setInterval(load, 3000); return ()=>clearInterval(iv); }, []);
+
+  // Countdown al abrir modal reset
+  useEffect(() => {
+    if (!resetOpen) { setResetCountdown(5); setResetInput(''); return; }
+    const iv = setInterval(() => setResetCountdown((n) => Math.max(0, n - 1)), 1000);
+    return () => clearInterval(iv);
+  }, [resetOpen]);
+
+  async function doReset() {
+    setResetBusy(true);
+    try {
+      const res = await fetch('/api/reset', { method: 'POST' });
+      if (res.ok) { setResetOpen(false); load(); alert('✓ Proceso reiniciado'); }
+      else alert('Error al reiniciar');
+    } finally { setResetBusy(false); }
+  }
+
   if (!s) return <div>Cargando…</div>;
 
   const kpis = [
@@ -36,12 +58,7 @@ export default function DashboardPage() {
             ⬇ Export Excel
           </a>
           <button
-            onClick={async () => {
-              if (!confirm('¿Reiniciar TODO el proceso? Esto pone todos los equipos en PENDING y borra el historial de eventos. No borra el catálogo importado ni los rollos.')) return;
-              const res = await fetch('/api/reset', { method: 'POST' });
-              if (res.ok) { alert('Proceso reiniciado'); load(); }
-              else alert('Error al reiniciar');
-            }}
+            onClick={() => setResetOpen(true)}
             className="rounded bg-red-800 hover:bg-red-700 px-4 py-2 text-white text-sm font-bold"
           >
             ↻ Reiniciar proceso
@@ -125,6 +142,68 @@ export default function DashboardPage() {
           </table>
         </div>
       </div>
+
+      {resetOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur">
+          <div className="max-w-lg w-full bg-slate-900 border-4 border-red-600 rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="text-5xl">⚠️</div>
+              <div>
+                <div className="text-2xl font-black text-red-400">REINICIAR TODO EL PROCESO</div>
+                <div className="text-sm text-slate-300 mt-1">Esta acción NO se puede deshacer.</div>
+              </div>
+            </div>
+
+            <div className="rounded bg-slate-800 p-3 text-sm text-slate-300 space-y-1">
+              <div>Se van a:</div>
+              <ul className="list-disc pl-5 text-red-300">
+                <li><b>{s.paired + s.labeled + s.matched}</b> equipos vuelven a PENDING</li>
+                <li>Borrar TODO el historial de eventos ({s.recent?.length ? 'incluye ' + s.recent.length + ' recientes' : ''})</li>
+              </ul>
+              <div className="text-emerald-400 mt-2">NO se borra:</div>
+              <ul className="list-disc pl-5 text-emerald-300">
+                <li>Catálogo importado ({s.total} equipos)</li>
+                <li>Rollos escaneados ({s.rollTotal})</li>
+                <li>Ubicaciones (Cama/Position/Pallet)</li>
+              </ul>
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-300 mb-2">
+                Para confirmar, escribe <b className="text-red-400 font-mono">REINICIAR</b> abajo:
+              </label>
+              <input
+                value={resetInput}
+                onChange={(e) => setResetInput(e.target.value)}
+                placeholder="REINICIAR"
+                autoFocus
+                className="w-full rounded bg-slate-950 border-2 border-slate-700 px-3 py-3 text-xl font-mono text-white focus:border-red-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setResetOpen(false)}
+                disabled={resetBusy}
+                className="rounded bg-slate-700 hover:bg-slate-600 px-4 py-2 text-white font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={doReset}
+                disabled={resetBusy || resetInput.trim().toUpperCase() !== 'REINICIAR' || resetCountdown > 0}
+                className="rounded bg-red-700 hover:bg-red-600 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed px-4 py-2 text-white font-bold"
+              >
+                {resetBusy
+                  ? 'Reiniciando…'
+                  : resetCountdown > 0
+                    ? `Espera ${resetCountdown}s`
+                    : '⚠ SÍ, REINICIAR TODO'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
