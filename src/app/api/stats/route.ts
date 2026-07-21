@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const [total, pending, paired, labeled, matched, byType, recent, rollTotal] = await Promise.all([
+  const [total, pending, paired, labeledPure, matched, byType, recent, rollTotal] = await Promise.all([
     prisma.equipment.count(),
     prisma.equipment.count({ where: { status: 'PENDING' } }),
     prisma.equipment.count({ where: { status: 'PAIR_READY' } }),
@@ -16,6 +16,9 @@ export async function GET() {
     prisma.labelRoll.count(),
   ]);
 
+  // "Etiquetados" incluye tanto LABELED como MATCHED (matched ya paso por etiquetado)
+  const labeled = labeledPure + matched;
+
   const typeAgg: Record<string, any> = {};
   for (const row of byType) {
     const t = row.equipmentType;
@@ -23,6 +26,10 @@ export async function GET() {
     typeAgg[t].total += row._count._all;
     const k = { PENDING:'pending', PAIR_READY:'paired', LABELED:'labeled', MATCHED:'matched' }[row.status];
     if (k) typeAgg[t][k] += row._count._all;
+  }
+  // Post: sumar matched a labeled en cada tipo
+  for (const t of Object.keys(typeAgg)) {
+    typeAgg[t].labeled = typeAgg[t].labeled + typeAgg[t].matched;
   }
 
   return NextResponse.json({
