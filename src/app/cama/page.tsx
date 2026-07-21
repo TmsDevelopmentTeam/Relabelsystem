@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScanInput, beepOK, siren, useOperator } from '@/components/ScanInput';
+
+type Item = { id: number; assetTag: string; inventario: string; cama: string | null; position: string | null; pallet: string | null; partida: string | null };
+type OrderList = { order: string; total: number; items: Item[] };
 
 export default function CamaPage() {
   const op = useOperator();
@@ -11,6 +14,9 @@ export default function CamaPage() {
   const [last, setLast] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [scanning, setScanning] = useState(false);
+  const [orderList, setOrderList] = useState<OrderList | null>(null);
+  const [scannedIds, setScannedIds] = useState<Set<string>>(new Set()); // assetTags escaneados en esta sesión
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Import
   const [file, setFile] = useState<File | null>(null);
@@ -29,13 +35,32 @@ export default function CamaPage() {
       const json = await res.json();
       setLast(json);
       setHistory((h) => [{ ...json, scanned: value, at: new Date() }, ...h].slice(0, 10));
-      if (json.ok) beepOK(); else siren();
+      if (json.ok) {
+        beepOK();
+        setScannedIds((s) => new Set([...s, json.assetTag]));
+        // Si cambia la orden, cargar la lista nueva
+        if (json.ordenDell && (!orderList || orderList.order !== json.ordenDell)) {
+          loadOrderList(json.ordenDell);
+        }
+      } else siren();
       setValue('');
     } catch (e:any) {
       setLast({ ok: false, message: e?.message });
       siren();
     } finally { setBusy(false); }
   }
+
+  async function loadOrderList(order: string) {
+    const res = await fetch(`/api/cama/order-list?order=${encodeURIComponent(order)}`, { cache: 'no-store' });
+    setOrderList(await res.json());
+  }
+
+  // Autoscroll al item actual
+  useEffect(() => {
+    if (!last?.ok || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-asset="${last.assetTag}"]`) as HTMLElement | null;
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [last]);
 
   async function doImport() {
     if (!file) return;
@@ -52,12 +77,18 @@ export default function CamaPage() {
     } finally { setImportBusy(false); }
   }
 
+  // Index del item actual en la lista y siguiente
+  const currentIdx = last?.ok && orderList
+    ? orderList.items.findIndex((i) => i.assetTag === last.assetTag)
+    : -1;
+  const nextItem = currentIdx >= 0 && orderList ? orderList.items[currentIdx + 1] ?? null : null;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="max-w-6xl mx-auto space-y-4">
       <div className="flex justify-between items-start flex-wrap gap-2">
         <div>
           <h1 className="text-3xl font-black text-white">🛏️ Cama / Position / Pallet</h1>
-          <p className="text-slate-400 text-sm">Escanea Serie (SN Dell) o Inventario y te digo la ubicación física.</p>
+          <p className="text-slate-400 text-sm">Escanea Serie (SN Dell) o Inventario. Al lado ves la lista de la orden en el orden del file para saber cuál sigue.</p>
         </div>
         <div className="flex gap-2 items-center">
           <button onClick={() => setShowImport((v) => !v)}
@@ -72,11 +103,10 @@ export default function CamaPage() {
         </div>
       </div>
 
-      {/* Panel de import */}
       {showImport && (
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-5 space-y-3">
           <div className="font-bold text-white">📥 Importar Excel de ubicaciones</div>
-          <div className="text-xs text-slate-400">Se lee el sheet que tenga columnas Cama, Position, Pallet, Serie e Inventario.</div>
+          <div className="text-xs text-slate-400">Lee TODOS los sheets con columnas Cama/Position/Pallet/Serie/Inventario. Upsert por assetTag.</div>
           <input type="file" accept=".xlsx,.xls"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="block text-sm"/>
@@ -93,8 +123,7 @@ export default function CamaPage() {
               {importResult.ok ? (
                 <>
                   <div><b>Total en DB:</b> {importResult.totalInDB}</div>
-                  <div className="mt-1"><b>Sheets procesados:</b></div>
-                  <ul className="list-disc pl-5">
+                  <ul className="list-disc pl-5 mt-1">
                     {importResult.summaries.map((s:any) => (
                       <li key={s.sheet}>
                         <b>{s.sheet}</b>: {s.recordsValid} filas · {s.inserted} nuevas · {s.updated} actualizadas
@@ -102,9 +131,7 @@ export default function CamaPage() {
                     ))}
                   </ul>
                   {importResult.skippedSheets?.length > 0 && (
-                    <div className="mt-2 text-xs opacity-80">
-                      Sheets omitidos (sin columnas Cama/Position/Pallet/Serie/Inventario): {importResult.skippedSheets.join(', ')}
-                    </div>
+                    <div className="mt-2 text-xs opacity-80">Sheets omitidos: {importResult.skippedSheets.join(', ')}</div>
                   )}
                 </>
               ) : `Error: ${importResult.error}`}
@@ -135,61 +162,110 @@ export default function CamaPage() {
         </div>
       )}
 
-      {last && (
-        <div className={`rounded-lg p-6 ${last.ok ? 'bg-orange-600' : 'bg-red-700'} text-white`}>
-          {last.ok ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-xl bg-black/40 p-4 border-2 border-white text-center">
-                  <div className="text-xs uppercase opacity-70">🛏️ CAMA</div>
-                  <div className="text-6xl font-black mt-1">{last.cama ?? '—'}</div>
+      {/* Layout: resultado + panel lateral */}
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+          {last && (
+            <div className={`rounded-lg p-6 ${last.ok ? 'bg-orange-600' : 'bg-red-700'} text-white`}>
+              {last.ok ? (
+                <div className="space-y-3">
+                  {/* NUEVO ORDEN: Pallet → Cama → Position */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-xl bg-black/40 p-4 border-2 border-white text-center">
+                      <div className="text-xs uppercase opacity-70">📦 PALLET</div>
+                      <div className="text-6xl font-black mt-1">{last.pallet ?? '—'}</div>
+                    </div>
+                    <div className="rounded-xl bg-black/40 p-4 border-2 border-white text-center">
+                      <div className="text-xs uppercase opacity-70">🛏️ CAMA</div>
+                      <div className="text-6xl font-black mt-1">{last.cama ?? '—'}</div>
+                    </div>
+                    <div className="rounded-xl bg-black/40 p-4 border-2 border-white text-center">
+                      <div className="text-xs uppercase opacity-70">📍 POSITION</div>
+                      <div className="text-6xl font-black mt-1">{last.position ?? '—'}</div>
+                    </div>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="rounded bg-black/30 p-3">
+                      <div className="text-xs uppercase opacity-70">Inventario</div>
+                      <div className="text-2xl font-mono mt-1">{last.inventario}</div>
+                    </div>
+                    <div className="rounded bg-black/30 p-3">
+                      <div className="text-xs uppercase opacity-70">Orden Dell</div>
+                      <div className="text-2xl font-mono mt-1">{last.ordenDell ?? '-'}</div>
+                    </div>
+                  </div>
+                  <div className="rounded bg-black/30 p-3 text-sm">
+                    <b>Serie:</b> <span className="font-mono">{last.assetTag}</span> · <b>Producto:</b> {last.producto ?? '-'} · <b>Partida:</b> {last.partida ?? '-'}
+                  </div>
+                  {nextItem && (
+                    <div className="rounded bg-emerald-500 text-black p-3 font-bold">
+                      ➡️ SIGUIENTE: <span className="font-mono">{nextItem.assetTag}</span> (Pallet {nextItem.pallet} · Cama {nextItem.cama} · Pos {nextItem.position})
+                    </div>
+                  )}
                 </div>
-                <div className="rounded-xl bg-black/40 p-4 border-2 border-white text-center">
-                  <div className="text-xs uppercase opacity-70">📍 POSITION</div>
-                  <div className="text-6xl font-black mt-1">{last.position ?? '—'}</div>
+              ) : (
+                <div>
+                  <div className="text-2xl font-black">❌ {last.reason ?? 'ERROR'}</div>
+                  <div className="mt-2">{last.message}</div>
                 </div>
-                <div className="rounded-xl bg-black/40 p-4 border-2 border-white text-center">
-                  <div className="text-xs uppercase opacity-70">📦 PALLET</div>
-                  <div className="text-6xl font-black mt-1">{last.pallet ?? '—'}</div>
-                </div>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div className="rounded bg-black/30 p-3">
-                  <div className="text-xs uppercase opacity-70">Inventario</div>
-                  <div className="text-2xl font-mono mt-1">{last.inventario}</div>
-                </div>
-                <div className="rounded bg-black/30 p-3">
-                  <div className="text-xs uppercase opacity-70">Orden Dell</div>
-                  <div className="text-2xl font-mono mt-1">{last.ordenDell ?? '-'}</div>
-                </div>
-              </div>
-              <div className="rounded bg-black/30 p-3 text-sm">
-                <b>Serie:</b> <span className="font-mono">{last.assetTag}</span> · <b>Producto:</b> {last.producto ?? '-'} · <b>Partida:</b> {last.partida ?? '-'}
-              </div>
+              )}
             </div>
-          ) : (
-            <div>
-              <div className="text-2xl font-black">❌ {last.reason ?? 'ERROR'}</div>
-              <div className="mt-2">{last.message}</div>
+          )}
+
+          {history.length > 0 && (
+            <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+              <div className="text-sm text-slate-400 mb-2">Últimos scans</div>
+              <ul className="space-y-1 text-sm font-mono">
+                {history.map((h, i) => (
+                  <li key={i} className={h.ok ? 'text-orange-400' : 'text-red-400'}>
+                    {h.ok
+                      ? `✓ ${h.scanned} → Pallet ${h.pallet} · Cama ${h.cama} · Pos ${h.position}`
+                      : `✗ ${h.scanned} · ${h.message ?? ''}`}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
-      )}
 
-      {history.length > 0 && (
+        {/* Panel lateral: lista de la orden */}
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <div className="text-sm text-slate-400 mb-2">Últimos scans</div>
-          <ul className="space-y-1 text-sm font-mono">
-            {history.map((h, i) => (
-              <li key={i} className={h.ok ? 'text-orange-400' : 'text-red-400'}>
-                {h.ok
-                  ? `✓ ${h.scanned} → Cama ${h.cama} · Pos ${h.position} · Pallet ${h.pallet}`
-                  : `✗ ${h.scanned} · ${h.message ?? ''}`}
-              </li>
-            ))}
-          </ul>
+          <div className="text-sm text-slate-400 mb-2">
+            📋 Orden {orderList?.order ?? '—'} · {orderList?.total ?? 0} equipos
+          </div>
+          {orderList ? (
+            <div ref={listRef} className="max-h-[600px] overflow-y-auto space-y-1 text-xs font-mono">
+              {orderList.items.map((it) => {
+                const isCurrent = last?.assetTag === it.assetTag;
+                const isDone = scannedIds.has(it.assetTag);
+                const isNext = nextItem?.assetTag === it.assetTag;
+                let cls = 'rounded px-2 py-1.5 border';
+                if (isCurrent) cls += ' bg-orange-500 border-white text-white font-bold';
+                else if (isNext) cls += ' bg-emerald-600 border-white text-white font-bold';
+                else if (isDone) cls += ' bg-slate-800/70 border-emerald-800 text-emerald-400 line-through';
+                else cls += ' bg-slate-950 border-slate-700 text-slate-400';
+                return (
+                  <div key={it.id} data-asset={it.assetTag} className={cls}>
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="truncate">
+                        {isCurrent && '▶ '}
+                        {isNext && '⏭ '}
+                        {isDone && !isCurrent && '✓ '}
+                        {it.assetTag}
+                      </span>
+                      <span className="opacity-80 text-[10px]">
+                        P{it.pallet}/C{it.cama}/{it.position}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-xs text-slate-500 italic">Escanea algo primero — la lista de esa orden aparecerá aquí en el orden del file (Pallet → Cama → Position).</div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
