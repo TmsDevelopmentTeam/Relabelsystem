@@ -5,12 +5,12 @@ import { norm } from '@/lib/normalize';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Escanea Serie (assetTag) o Inventario. Devuelve Cama/Position/Pallet + info.
-export async function GET(req: NextRequest) {
-  const scan = norm(req.nextUrl.searchParams.get('scan'));
-  if (!scan) return NextResponse.json({ ok: false, message: 'Falta scan' }, { status: 400 });
+// Escanea Serie (assetTag) o Inventario. Devuelve Cama/Position/Pallet.
+// Ademas MARCA en BD que este assetTag ya fue escaneado (scannedAt/By).
+async function doLookup(scanRaw: string, operator: string) {
+  const scan = norm(scanRaw);
+  if (!scan) return { ok: false, message: 'Falta scan' };
 
-  // Detectar si es inventario (AM/EQR) o asset tag
   const isInventario = /^(AM|EQR)/.test(scan);
   let u = null;
   if (isInventario) {
@@ -18,11 +18,17 @@ export async function GET(req: NextRequest) {
   } else {
     u = await prisma.ubicacion.findUnique({ where: { assetTag: scan } });
   }
-  if (!u) {
-    return NextResponse.json({ ok: false, reason: 'NOT_FOUND', message: `${scan} no encontrado en el catálogo de ubicaciones.` });
+  if (!u) return { ok: false, reason: 'NOT_FOUND', message: `${scan} no encontrado en el catálogo de ubicaciones.` };
+
+  // Persistir el scan (si no estaba ya escaneado)
+  if (!u.scannedAt) {
+    u = await prisma.ubicacion.update({
+      where: { id: u.id },
+      data: { scannedAt: new Date(), scannedBy: operator || null },
+    });
   }
 
-  return NextResponse.json({
+  return {
     ok: true,
     assetTag: u.assetTag,
     inventario: u.inventario,
@@ -33,5 +39,19 @@ export async function GET(req: NextRequest) {
     po: u.po,
     producto: u.producto,
     partida: u.partida,
-  });
+    scannedAt: u.scannedAt,
+  };
+}
+
+export async function GET(req: NextRequest) {
+  const scan = req.nextUrl.searchParams.get('scan') ?? '';
+  const operator = req.nextUrl.searchParams.get('operator') ?? '';
+  const res = await doLookup(scan, operator);
+  return NextResponse.json(res);
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const res = await doLookup(String(body?.scan ?? ''), String(body?.operator ?? ''));
+  return NextResponse.json(res);
 }

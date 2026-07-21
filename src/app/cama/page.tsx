@@ -5,6 +5,7 @@ import { ScanInput, beepOK, siren, useOperator } from '@/components/ScanInput';
 
 type Item = { id: number; assetTag: string; inventario: string; cama: string | null; position: string | null; pallet: string | null; partida: string | null };
 type OrderList = { order: string; total: number; items: Item[] };
+type OrderSummary = { orderNumber: string; total: number; scannedCount: number; assetTags: string[]; scannedAssetTags: string[] };
 
 export default function CamaPage() {
   const op = useOperator();
@@ -16,7 +17,7 @@ export default function CamaPage() {
   const [scanning, setScanning] = useState(false);
   const [orderList, setOrderList] = useState<OrderList | null>(null);
   const [scannedIds, setScannedIds] = useState<Set<string>>(new Set()); // assetTags escaneados en esta sesión
-  const [allOrders, setAllOrders] = useState<{ orderNumber: string; total: number; assetTags: string[] }[]>([]);
+  const [allOrders, setAllOrders] = useState<OrderSummary[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Import
@@ -34,20 +35,43 @@ export default function CamaPage() {
     const res = await fetch('/api/cama/orders', { cache: 'no-store' });
     const j = await res.json();
     setAllOrders(j.orders ?? []);
+    // Hidratar scannedIds con los ya persistidos en BD
+    const persisted = new Set<string>();
+    for (const o of (j.orders ?? [])) {
+      for (const t of (o.scannedAssetTags ?? [])) persisted.add(t);
+    }
+    setScannedIds((prev) => new Set([...persisted, ...prev]));
+  }
+
+  async function resetAllScanned() {
+    if (!confirm('¿Borrar el estado de escaneado de TODAS las ubicaciones? (No borra el catálogo importado.)')) return;
+    await fetch('/api/cama/reset-scanned', { method: 'POST' });
+    setScannedIds(new Set());
+    loadAllOrders();
+  }
+
+  async function resetOrderScanned(orderNumber: string) {
+    if (!confirm(`¿Reiniciar el estado escaneado de la orden ${orderNumber}?`)) return;
+    await fetch(`/api/cama/reset-scanned?order=${encodeURIComponent(orderNumber)}`, { method: 'POST' });
+    loadAllOrders();
   }
 
   async function submit() {
     if (!value.trim() || busy) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/cama/lookup?scan=${encodeURIComponent(value)}`, { cache: 'no-store' });
+      const res = await fetch(
+        `/api/cama/lookup?scan=${encodeURIComponent(value)}&operator=${encodeURIComponent(operator)}`,
+        { cache: 'no-store' },
+      );
       const json = await res.json();
       setLast(json);
       setHistory((h) => [{ ...json, scanned: value, at: new Date() }, ...h].slice(0, 10));
       if (json.ok) {
         beepOK();
         setScannedIds((s) => new Set([...s, json.assetTag]));
-        // Si cambia la orden, cargar la lista nueva
+        // Refrescar el resumen de órdenes para actualizar scannedCount en el panel
+        loadAllOrders();
         if (json.ordenDell && (!orderList || orderList.order !== json.ordenDell)) {
           loadOrderList(json.ordenDell);
         }
@@ -360,16 +384,22 @@ export default function CamaPage() {
       {/* Panel de órdenes (abajo) */}
       {allOrders.length > 0 && (
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <div className="text-sm text-slate-400 mb-2">
-            📋 Órdenes ({allOrders.length}) — verde = completa, naranja = en progreso
+          <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+            <div className="text-sm text-slate-400">
+              📋 Órdenes ({allOrders.length}) — verde = completa, naranja = en progreso · persistido en BD
+            </div>
+            <button onClick={resetAllScanned}
+              className="rounded bg-red-900 hover:bg-red-800 px-3 py-1 text-white text-xs font-bold">
+              ↻ Reiniciar estado escaneado (todas)
+            </button>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-2">
             {allOrders.map((o) => {
-              const doneCount = o.assetTags.filter((t) => scannedIds.has(t)).length;
+              const doneCount = o.scannedCount; // desde BD, persistente
               const isDone = doneCount === o.total;
               const isInProgress = doneCount > 0 && !isDone;
               const isCurrent = last?.ok && last.ordenDell === o.orderNumber;
-              let cls = 'rounded p-2 text-xs border transition';
+              let cls = 'rounded p-2 text-xs border transition text-left';
               if (isDone) cls += ' bg-emerald-700 border-emerald-300 text-white font-bold';
               else if (isCurrent) cls += ' bg-orange-500 border-white text-white font-bold ring-2 ring-white';
               else if (isInProgress) cls += ' bg-amber-800 border-amber-500 text-amber-100';
@@ -377,6 +407,8 @@ export default function CamaPage() {
               return (
                 <button key={o.orderNumber}
                   onClick={() => loadOrderList(o.orderNumber)}
+                  onDoubleClick={() => resetOrderScanned(o.orderNumber)}
+                  title="Click: cargar orden · Doble click: reiniciar esta orden"
                   className={cls}>
                   <div className="font-mono truncate">{o.orderNumber}</div>
                   <div>{doneCount}/{o.total} {isDone && '✓'}</div>

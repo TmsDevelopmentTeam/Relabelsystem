@@ -23,6 +23,8 @@ model Ubicacion {
   position    String?             // Position
   pallet      String?             // Pallet
   createdAt   DateTime @default(now())
+  scannedAt   DateTime?           // marca cuándo se escaneó en /cama
+  scannedBy   String?             // operador que lo escaneó
 
   @@index([inventario])
   @@index([partida])
