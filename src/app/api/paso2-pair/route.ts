@@ -79,6 +79,16 @@ export async function POST(req: NextRequest) {
               message: rollPosition ? `Rollo #${rollPosition}` : 'Sin rollo pre-cargado' },
     });
 
+    // Lookup opcional en Ubicacion (módulo Cama) — solo lectura, no modifica nada
+    const ubicacion = await prisma.ubicacion
+      .findFirst({
+        where: {
+          OR: [{ assetTag: target.assetTag }, { inventario: inventarioResolved }],
+        },
+        select: { cama: true, position: true, pallet: true, partida: true },
+      })
+      .catch(() => null);
+
     return NextResponse.json({
       ok: true,
       equipment: updated,
@@ -87,6 +97,7 @@ export async function POST(req: NextRequest) {
       inventario: inventarioResolved,
       othersWithSameInventario: equipos.length - 1,
       alreadyPaired: !shouldAdvance,
+      ubicacion, // { cama, position, pallet, partida } o null si no está en Cama
     });
   } catch (e: any) {
     console.error(e);

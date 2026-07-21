@@ -75,14 +75,28 @@ export default function UbicarPage() {
             <div className="space-y-3">
               {last.rollPosition ? (
                 <>
-                  <div className="text-white">
-                    <div className="text-sm uppercase opacity-80">🎞️ POSICIÓN EN EL ROLLO</div>
-                    <div className="text-7xl font-black mt-1">#{last.rollPosition}</div>
-                    {last.rollOrder && (
-                      <div className="text-sm opacity-90 mt-1">Orden: <b className="font-mono">{last.rollOrder}</b></div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="text-white rounded-xl bg-black/40 p-4 border-2 border-white">
+                      <div className="text-sm uppercase opacity-80">🎞️ POSICIÓN EN EL ROLLO</div>
+                      <div className="text-7xl font-black mt-1">#{last.rollPosition}</div>
+                      {last.rollOrder && (
+                        <div className="text-sm opacity-90 mt-1">Orden: <b className="font-mono">{last.rollOrder}</b></div>
+                      )}
+                      <div className="text-xs opacity-70 mt-1">Etiqueta del rollo</div>
+                    </div>
+
+                    {last.ubicacion && last.ubicacion.position && (
+                      <div className="text-white rounded-xl bg-orange-800/60 p-4 border-2 border-white">
+                        <div className="text-sm uppercase opacity-80">📍 POSITION (Cama)</div>
+                        <div className="text-7xl font-black mt-1">#{last.ubicacion.position}</div>
+                        <div className="text-sm opacity-90 mt-1">
+                          Cama <b>{last.ubicacion.cama ?? '—'}</b> · Pallet <b>{last.ubicacion.pallet ?? '—'}</b>
+                        </div>
+                        <div className="text-xs opacity-70 mt-1">Ubicación física</div>
+                      </div>
                     )}
-                    <div className="text-sm opacity-80 mt-1">Toma la etiqueta de esta posición y pégala al equipo/caja.</div>
                   </div>
+                  <div className="text-sm opacity-80 mt-1">Toma la etiqueta del rollo y pégala al equipo/caja.</div>
                   <div className="rounded bg-black/30 p-3 text-white font-mono">
                     <div className="text-xs uppercase opacity-70">Etiqueta (Inventario)</div>
                     <div className="text-2xl">{last.inventario ?? last.equipment?.inventario}</div>
