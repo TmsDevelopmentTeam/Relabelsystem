@@ -85,17 +85,31 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // Upsert uno por uno (para poder distinguir insert vs update)
-      let inserted = 0, updated = 0;
-      for (const rec of records) {
-        const existing = await prisma.ubicacion.findUnique({ where: { assetTag: rec.assetTag } });
-        if (existing) {
-          await prisma.ubicacion.update({ where: { assetTag: rec.assetTag }, data: rec });
-          updated++;
-        } else {
-          await prisma.ubicacion.create({ data: rec });
-          inserted++;
-        }
+      // Estrategia optimizada: primero traer los assetTags que ya existen (1 query),
+      // luego batch update para existentes y batch createMany para nuevos.
+      const assetTags = records.map((r) => r.assetTag);
+      const existing = await prisma.ubicacion.findMany({
+        where: { assetTag: { in: assetTags } },
+        select: { assetTag: true },
+      });
+      const existingSet = new Set(existing.map((e) => e.assetTag));
+
+      const toCreate = records.filter((r) => !existingSet.has(r.assetTag));
+      const toUpdate = records.filter((r) => existingSet.has(r.assetTag));
+
+      // Batch insert
+      let inserted = 0;
+      const BATCH = 500;
+      for (let i = 0; i < toCreate.length; i += BATCH) {
+        const chunk = toCreate.slice(i, i + BATCH);
+        const res = await prisma.ubicacion.createMany({ data: chunk });
+        inserted += res.count;
+      }
+      // Updates individuales (Prisma no soporta batch update con datos distintos)
+      let updated = 0;
+      for (const rec of toUpdate) {
+        await prisma.ubicacion.update({ where: { assetTag: rec.assetTag }, data: rec });
+        updated++;
       }
 
       summaries.push({ sheet: sn, recordsValid: records.length, inserted, updated });

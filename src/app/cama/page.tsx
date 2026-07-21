@@ -77,7 +77,18 @@ export default function CamaPage() {
       fd.append('file', file);
       if (wipe) fd.append('wipe', 'true');
       const res = await fetch('/api/cama/import', { method: 'POST', body: fd });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any;
+      try { json = JSON.parse(text); } catch {
+        // Respuesta no-JSON (probablemente Nginx 413/504 con HTML)
+        if (res.status === 413) {
+          json = { error: `Archivo muy grande (${(file.size/1024/1024).toFixed(1)} MB). El server aún no acepta este tamaño. Pide al admin subir client_max_body_size a 100M o más.` };
+        } else if (res.status === 504) {
+          json = { error: 'Timeout del server (504). El archivo es tan grande que tardó demasiado en procesarse. Divide por partidas o pide al admin subir proxy_read_timeout.' };
+        } else {
+          json = { error: `Server respondió ${res.status} pero no en JSON. Contenido: ${text.slice(0, 200)}` };
+        }
+      }
       setImportResult(json);
     } catch (e:any) {
       setImportResult({ error: e?.message ?? 'Error' });
