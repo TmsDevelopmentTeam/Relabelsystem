@@ -15,7 +15,6 @@ export default function DashboardPage() {
     { label: 'Total',       value: s.total,     color: 'bg-slate-800' },
     { label: 'Pendientes',  value: s.pending,   color: 'bg-slate-700' },
     { label: '① Ubicados',  value: s.paired,    color: 'bg-amber-800' },
-    { label: '② Etiquetados', value: s.labeled, color: 'bg-purple-800' },
     { label: '③ Matched',   value: s.matched,   color: 'bg-emerald-700' },
     { label: '🎞️ Rollos',    value: s.rollTotal, color: 'bg-teal-800' },
   ];
