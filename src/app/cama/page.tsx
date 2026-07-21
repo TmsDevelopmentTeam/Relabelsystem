@@ -16,6 +16,7 @@ export default function CamaPage() {
   const [scanning, setScanning] = useState(false);
   const [orderList, setOrderList] = useState<OrderList | null>(null);
   const [scannedIds, setScannedIds] = useState<Set<string>>(new Set()); // assetTags escaneados en esta sesión
+  const [allOrders, setAllOrders] = useState<{ orderNumber: string; total: number; assetTags: string[] }[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Import
@@ -25,7 +26,13 @@ export default function CamaPage() {
   const [importResult, setImportResult] = useState<any>(null);
   const [showImport, setShowImport] = useState(false);
 
-  useEffect(() => { setOperator(op.get()); }, []);
+  useEffect(() => { setOperator(op.get()); loadAllOrders(); }, []);
+
+  async function loadAllOrders() {
+    const res = await fetch('/api/cama/orders', { cache: 'no-store' });
+    const j = await res.json();
+    setAllOrders(j.orders ?? []);
+  }
 
   async function submit() {
     if (!value.trim() || busy) return;
@@ -159,6 +166,36 @@ export default function CamaPage() {
           <label className="block text-lg text-slate-200 mb-3">Escanea Serie o Inventario</label>
           <ScanInput value={value} onChange={setValue} onSubmit={submit} disabled={busy}
             placeholder="Serie / Inventario…" borderColor="border-orange-500" armed={true}/>
+        </div>
+      )}
+
+      {/* Panel de órdenes */}
+      {allOrders.length > 0 && (
+        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+          <div className="text-sm text-slate-400 mb-2">
+            📋 Órdenes ({allOrders.length}) — verde = completa, naranja = en progreso
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-8 gap-2">
+            {allOrders.map((o) => {
+              const doneCount = o.assetTags.filter((t) => scannedIds.has(t)).length;
+              const isDone = doneCount === o.total;
+              const isInProgress = doneCount > 0 && !isDone;
+              const isCurrent = last?.ok && last.ordenDell === o.orderNumber;
+              let cls = 'rounded p-2 text-xs border transition';
+              if (isDone) cls += ' bg-emerald-700 border-emerald-300 text-white font-bold';
+              else if (isCurrent) cls += ' bg-orange-500 border-white text-white font-bold ring-2 ring-white';
+              else if (isInProgress) cls += ' bg-amber-800 border-amber-500 text-amber-100';
+              else cls += ' bg-slate-950 border-slate-700 text-slate-400';
+              return (
+                <button key={o.orderNumber}
+                  onClick={() => loadOrderList(o.orderNumber)}
+                  className={cls}>
+                  <div className="font-mono truncate">{o.orderNumber}</div>
+                  <div>{doneCount}/{o.total} {isDone && '✓'}</div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
