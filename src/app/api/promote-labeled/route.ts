@@ -26,3 +26,14 @@ export async function POST(req: NextRequest) {
     equipments: laggards.slice(0, 20),
   });
 }
+
+// GET: consulta cuáles fueron promovidos históricamente por este endpoint
+export async function GET() {
+  const items = await prisma.equipment.findMany({
+    where: { matchedBy: { in: ['admin-promote', 'admin-promote-run'] } },
+    orderBy: { matchedAt: 'desc' },
+    take: 50,
+    select: { id: true, assetTag: true, inventario: true, producto: true, ordenDell: true, po: true, matchedAt: true, matchedBy: true },
+  });
+  return NextResponse.json({ count: items.length, items });
+}
