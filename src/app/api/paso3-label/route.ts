@@ -42,24 +42,17 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ESTRICTO: solo rollo de la MISMA orden del equipo. Sin fallback a otras órdenes.
     const equipoOrder = eq.ordenDell ?? eq.po ?? null;
-    const rollEntry =
-      (equipoOrder
-        ? await prisma.labelRoll.findFirst({
-            where: { value: eq.inventario, orderNumber: equipoOrder },
-            orderBy: { position: 'asc' },
-          })
-        : null) ??
-      (await prisma.labelRoll.findFirst({
-        where: { value: eq.inventario, orderNumber: { not: null } },
-        orderBy: { id: 'asc' },
-      })) ??
-      (await prisma.labelRoll.findFirst({
-        where: { value: eq.inventario },
-        orderBy: { id: 'asc' },
-      }));
-    const rollPosition = rollEntry?.position ?? rollEntry?.id ?? null;
+    const rollEntry = equipoOrder
+      ? await prisma.labelRoll.findFirst({
+          where: { value: eq.inventario, orderNumber: equipoOrder },
+          orderBy: { position: 'asc' },
+        })
+      : null;
+    const rollPosition = rollEntry?.position ?? null;
     const rollOrder = rollEntry?.orderNumber ?? null;
+    const rollMissingForOrder = !rollEntry && equipoOrder != null;
 
     // Marcar LABELED si estaba pendiente
     const shouldAdvance = eq.status !== 'LABELED';
@@ -84,6 +77,8 @@ export async function POST(req: NextRequest) {
       producto: eq.producto,
       rollPosition,
       rollOrder,
+      rollMissingForOrder,
+      equipoOrder,
       alreadyLabeled: !shouldAdvance,
     });
   } catch (e: any) {

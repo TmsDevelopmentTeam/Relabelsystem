@@ -49,26 +49,36 @@ export async function POST(req: NextRequest) {
       target = equipos.find((e) => e.status === 'PENDING') ?? equipos[0];
     }
 
-    // Priorizar el rollo cuya orderNumber coincida con la orden del equipo escaneado.
-    // Fallback: cualquier rollo con orden. Fallback final: legacy sin orden.
+    // Buscar rollo pre-cargado que coincida con la orden del equipo escaneado.
+    // Regla ESTRICTA: si el operador escaneó un ASSET TAG (orden única y clara),
+    // solo devolvemos rollos de ESA misma orden. NO caemos a otras órdenes
+    // porque eso confunde al operador (mismo inventario existe en varias ordenes).
+    // Solo si escanearon INVENTARIO puro (isInventario=true, sin contexto de orden)
+    // aceptamos cualquier rollo como fallback.
     const equipoOrder = target.ordenDell ?? target.po ?? null;
-    const rollEntry =
-      (equipoOrder
-        ? await prisma.labelRoll.findFirst({
-            where: { value: inventarioResolved, orderNumber: equipoOrder },
-            orderBy: { position: 'asc' },
-          })
-        : null) ??
-      (await prisma.labelRoll.findFirst({
-        where: { value: inventarioResolved, orderNumber: { not: null } },
-        orderBy: { id: 'asc' },
-      })) ??
-      (await prisma.labelRoll.findFirst({
-        where: { value: inventarioResolved },
-        orderBy: { id: 'asc' },
-      }));
+    let rollEntry = null;
+    if (equipoOrder) {
+      rollEntry = await prisma.labelRoll.findFirst({
+        where: { value: inventarioResolved, orderNumber: equipoOrder },
+        orderBy: { position: 'asc' },
+      });
+    }
+    if (!rollEntry && isInventario) {
+      // Escaneó inventario sin orden clara → fallback permitido
+      rollEntry =
+        (await prisma.labelRoll.findFirst({
+          where: { value: inventarioResolved, orderNumber: { not: null } },
+          orderBy: { id: 'asc' },
+        })) ??
+        (await prisma.labelRoll.findFirst({
+          where: { value: inventarioResolved },
+          orderBy: { id: 'asc' },
+        }));
+    }
     const rollPosition = rollEntry?.position ?? rollEntry?.id ?? null;
     const rollOrder = rollEntry?.orderNumber ?? null;
+    // Si escaneó asset tag y no hay rollo en su orden, avisar (rollMissingForOrder=true)
+    const rollMissingForOrder = !isInventario && !rollEntry && equipoOrder != null;
 
     // Marcar como PAIR_READY (si estaba PENDING). No bloquear si ya avanzó.
     const shouldAdvance = target.status === 'PENDING';
@@ -102,6 +112,8 @@ export async function POST(req: NextRequest) {
       equipment: updated,
       rollPosition,
       rollOrder,
+      rollMissingForOrder,
+      equipoOrder,
       inventario: inventarioResolved,
       othersWithSameInventario: equipos.length - 1,
       alreadyPaired: !shouldAdvance,

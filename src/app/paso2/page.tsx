@@ -106,11 +106,23 @@ export default function UbicarPage() {
                     <div>{last.equipment?.producto} {last.equipment?.equipmentType === 'LAPTOP' && '· 💻 LAPTOP (pega 2 etiquetas)'}</div>
                   </div>
                 </>
+              ) : last.rollMissingForOrder ? (
+                <div>
+                  <div className="text-3xl font-black">⚠️ ROLLO NO CARGADO PARA ESTA ORDEN</div>
+                  <div className="text-lg mt-2">
+                    El equipo pertenece a la orden <b className="font-mono">{last.equipoOrder}</b>,
+                    pero aún NO hay rollo pre-cargado con esta etiqueta en esa orden.
+                  </div>
+                  <div className="text-sm mt-2">
+                    Ve a <b>🎞️ Rollos</b>, selecciona la orden <b className="font-mono">{last.equipoOrder}</b> y
+                    pre-escanea las etiquetas físicas de ese rollo. Después vuelve aquí.
+                  </div>
+                </div>
               ) : (
                 <div>
                   <div className="text-3xl font-black">⚠️ ETIQUETA NO ENCONTRADA EN EL ROLLO</div>
                   <div className="text-lg mt-2">
-                    La etiqueta <b>{last.inventario ?? last.equipment?.inventario}</b> aún no está registrada en tu rollo.
+                    La etiqueta <b>{last.inventario ?? last.equipment?.inventario}</b> aún no está registrada en ningún rollo.
                   </div>
                   <div className="text-sm mt-2">
                     Ve a <b>🎞️ Rollos</b> y escánenla ahí primero. Después vuelve a intentar aquí.
