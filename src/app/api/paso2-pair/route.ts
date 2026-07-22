@@ -49,8 +49,16 @@ export async function POST(req: NextRequest) {
       target = equipos.find((e) => e.status === 'PENDING') ?? equipos[0];
     }
 
-    // Prefiere registros CON orderNumber (los más recientes con ordena); fallback a legacy sin orden
+    // Priorizar el rollo cuya orderNumber coincida con la orden del equipo escaneado.
+    // Fallback: cualquier rollo con orden. Fallback final: legacy sin orden.
+    const equipoOrder = target.ordenDell ?? target.po ?? null;
     const rollEntry =
+      (equipoOrder
+        ? await prisma.labelRoll.findFirst({
+            where: { value: inventarioResolved, orderNumber: equipoOrder },
+            orderBy: { position: 'asc' },
+          })
+        : null) ??
       (await prisma.labelRoll.findFirst({
         where: { value: inventarioResolved, orderNumber: { not: null } },
         orderBy: { id: 'asc' },

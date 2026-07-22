@@ -42,7 +42,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const equipoOrder = eq.ordenDell ?? eq.po ?? null;
     const rollEntry =
+      (equipoOrder
+        ? await prisma.labelRoll.findFirst({
+            where: { value: eq.inventario, orderNumber: equipoOrder },
+            orderBy: { position: 'asc' },
+          })
+        : null) ??
       (await prisma.labelRoll.findFirst({
         where: { value: eq.inventario, orderNumber: { not: null } },
         orderBy: { id: 'asc' },
