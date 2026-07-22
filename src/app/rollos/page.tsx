@@ -78,6 +78,10 @@ export default function RollosPage() {
         siren();
         alert(`⚠️ ${json.message}`);
         setValue('');
+      } else if (json.reason === 'ALREADY_SCANNED') {
+        siren();
+        alert(`🔁 ${json.message}\n\nEsta etiqueta ya se escaneó lo esperado. Si aún así quieres agregarla, usa "Forzar" con precaución.`);
+        setValue('');
       } else {
         siren();
       }

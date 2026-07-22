@@ -57,6 +57,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Validación de duplicado por orden (no bloquea con force=true).
+    // Regla: cada equipo lleva su cantidad de etiquetas físicas según tipo.
+    //   - LAPTOP: 2 etiquetas
+    //   - MONITOR/DESKTOP/OTHER: 1 etiqueta
+    // Si Monitor+CPU comparten activo en la misma orden, el esperado suma ambos.
+    if (!force) {
+      const equipos = await prisma.equipment.findMany({
+        where: {
+          inventario: value,
+          OR: [{ ordenDell: orderNumber }, { po: orderNumber }],
+        },
+        select: { equipmentType: true },
+      });
+      const laptops = equipos.filter((e) => e.equipmentType === 'LAPTOP').length;
+      const otros = equipos.length - laptops;
+      const expected = laptops * 2 + otros * 1;
+
+      const already = await prisma.labelRoll.count({
+        where: { value, orderNumber },
+      });
+
+      if (expected > 0 && already >= expected) {
+        return NextResponse.json({
+          ok: false,
+          reason: 'ALREADY_SCANNED',
+          message: `La etiqueta ${value} ya se escaneó ${already} vez(es) en la orden ${orderNumber} (máximo esperado: ${expected}).`,
+          scanned: value,
+          alreadyCount: already,
+          expectedCount: expected,
+        });
+      }
+    }
+
     // Ya validado (o forzado): guardar
     const lastForOrder = await prisma.labelRoll.findFirst({
       where: { orderNumber },
