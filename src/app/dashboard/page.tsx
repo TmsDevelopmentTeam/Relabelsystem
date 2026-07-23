@@ -4,14 +4,19 @@ import { useEffect, useState } from 'react';
 
 export default function DashboardPage() {
   const [s, setS] = useState<any>(null);
+  const [daily, setDaily] = useState<any>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetInput, setResetInput] = useState('');
   const [resetBusy, setResetBusy] = useState(false);
   const [resetCountdown, setResetCountdown] = useState(5);
 
   async function load() {
-    const res = await fetch('/api/stats', { cache: 'no-store' });
+    const [res, resDaily] = await Promise.all([
+      fetch('/api/stats', { cache: 'no-store' }),
+      fetch('/api/stats/daily', { cache: 'no-store' }),
+    ]);
     setS(await res.json());
+    setDaily(await resDaily.json());
   }
   useEffect(() => { load(); const iv = setInterval(load, 3000); return ()=>clearInterval(iv); }, []);
 
@@ -115,6 +120,47 @@ export default function DashboardPage() {
           );
         })}
       </div>
+
+      {/* Procesadas por día */}
+      {daily && daily.days.length > 0 && (
+        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+          <div className="flex justify-between items-center mb-3">
+            <div className="text-sm text-slate-400">📅 Procesadas por día · {daily.totalDays} día(s) con actividad</div>
+            <div className="text-xs text-slate-500">Solo cuenta equipos MATCHED</div>
+          </div>
+          <div className="space-y-2">
+            {daily.days.map((d: any) => {
+              const pct = Math.round((d.total / daily.max) * 100);
+              const fecha = new Date(d.date + 'T12:00:00');
+              const dow = fecha.toLocaleDateString('es-MX', { weekday: 'short' });
+              return (
+                <div key={d.date} className="grid grid-cols-[9rem_1fr_5rem] gap-3 items-center text-sm">
+                  <div className="font-mono text-slate-300">
+                    <span className="text-slate-500">{dow}</span> {d.date}
+                  </div>
+                  <div className="h-6 bg-slate-950 rounded overflow-hidden flex items-center relative">
+                    <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all"
+                      style={{ width: `${pct}%` }}/>
+                    <div className="absolute left-2 text-xs font-mono text-white/90 flex gap-2">
+                      {d.byType.LAPTOP > 0 && <span>💻 {d.byType.LAPTOP}</span>}
+                      {d.byType.MONITOR > 0 && <span>📺 {d.byType.MONITOR}</span>}
+                      {d.byType.DESKTOP > 0 && <span>🖥 {d.byType.DESKTOP}</span>}
+                      {d.byType.OTHER > 0 && <span>❓ {d.byType.OTHER}</span>}
+                    </div>
+                  </div>
+                  <div className="text-right font-bold text-emerald-300 font-mono">{d.total}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-800 flex justify-between text-xs text-slate-400">
+            <span>Total histórico:</span>
+            <span className="font-mono font-bold text-emerald-300">
+              {daily.days.reduce((a: number, d: any) => a + d.total, 0)} equipos
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
         <div className="text-sm text-slate-400 mb-3">Últimos eventos</div>
