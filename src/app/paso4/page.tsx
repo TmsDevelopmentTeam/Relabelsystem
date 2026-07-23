@@ -3,24 +3,26 @@
 import { useEffect, useState } from 'react';
 import { ScanInput, beepOK, useOperator } from '@/components/ScanInput';
 
-type Step = 'small' | 'asset' | 'big' | 'result';
+type Step = 'small' | 'asset' | 'small2' | 'big' | 'result';
 
 export default function Paso4Page() {
   const op = useOperator();
   const [operator, setOperator] = useState('');
   const [step, setStep] = useState<Step>('small');
   const [small, setSmall] = useState('');
+  const [small2, setSmall2] = useState('');
   const [asset, setAsset] = useState('');
   const [big, setBig] = useState('');
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [scanning, setScanning] = useState(false);
+  const [isLaptop, setIsLaptop] = useState(false);
 
   useEffect(() => { setOperator(op.get()); }, []);
 
   function reset() {
-    setStep('small'); setSmall(''); setAsset(''); setBig(''); setValue(''); setResult(null);
+    setStep('small'); setSmall(''); setSmall2(''); setAsset(''); setBig(''); setValue(''); setResult(null); setIsLaptop(false);
   }
 
   async function submit() {
@@ -28,14 +30,34 @@ export default function Paso4Page() {
     if (!v || busy) return;
 
     if (step === 'small')  { setSmall(v); setValue(''); setStep('asset'); return; }
-    if (step === 'asset')  { setAsset(v); setValue(''); setStep('big');   return; }
+    if (step === 'asset') {
+      setAsset(v); setValue('');
+      // Consultar tipo del equipo para decidir si pedir segunda etiqueta pequeña
+      try {
+        const res = await fetch(`/api/equipment?assetTag=${encodeURIComponent(v)}`);
+        if (res.ok) {
+          const eq = await res.json();
+          if (eq?.equipmentType === 'LAPTOP') {
+            setIsLaptop(true); setStep('small2'); return;
+          }
+        }
+      } catch {}
+      setStep('big'); return;
+    }
+    if (step === 'small2') { setSmall2(v); setValue(''); setStep('big'); return; }
     if (step === 'big') {
       setBig(v);
       setBusy(true);
       try {
         const res = await fetch('/api/paso4-match', {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ smallLabel: small, assetTag: asset, bigLabel: v, operator }),
+          body: JSON.stringify({
+            smallLabel: small,
+            smallLabel2: isLaptop ? small2 : undefined,
+            assetTag: asset,
+            bigLabel: v,
+            operator,
+          }),
         });
         const json = await res.json();
         setResult(json);
@@ -51,14 +73,27 @@ export default function Paso4Page() {
     }
   }
 
+  const totalSteps = isLaptop ? 4 : 3;
+  const stepNum = (s: Step) => {
+    if (s === 'small') return 1;
+    if (s === 'asset') return 2;
+    if (isLaptop) {
+      if (s === 'small2') return 3;
+      if (s === 'big') return 4;
+    } else {
+      if (s === 'big') return 3;
+    }
+    return 0;
+  };
   const labels: Record<Step,string> = {
-    small: '1/3 · Escanea la etiqueta PEQUEÑA (activo fijo pegada al equipo)',
-    asset: '2/3 · Escanea el ASSET TAG del equipo (SN físico Dell)',
-    big:   '3/3 · Escanea la etiqueta GRANDE (pegada a la caja)',
+    small: `${stepNum('small')}/${totalSteps} · Escanea la etiqueta PEQUEÑA (activo fijo pegada al equipo)`,
+    asset: `${stepNum('asset')}/${totalSteps} · Escanea el ASSET TAG del equipo (SN físico Dell)`,
+    small2: `${stepNum('small2')}/${totalSteps} · 💻 LAPTOP · Escanea la SEGUNDA etiqueta pequeña (la del otro extremo)`,
+    big:   `${stepNum('big')}/${totalSteps} · Escanea la etiqueta GRANDE (pegada a la caja)`,
     result: 'Resultado',
   };
   const stepColor: Record<Step,string> = {
-    small: 'border-sky-500', asset: 'border-purple-500', big: 'border-amber-500', result: 'border-slate-700',
+    small: 'border-sky-500', asset: 'border-purple-500', small2: 'border-yellow-400', big: 'border-amber-500', result: 'border-slate-700',
   };
 
   return (
@@ -78,6 +113,9 @@ export default function Paso4Page() {
       <div className="flex gap-2 flex-wrap">
         <Chip active={step==='small'} done={!!small}>Pequeña {small && `· ${small}`}</Chip>
         <Chip active={step==='asset'} done={!!asset}>Asset Tag {asset && `· ${asset}`}</Chip>
+        {isLaptop && (
+          <Chip active={step==='small2'} done={!!small2}>💻 Pequeña #2 {small2 && `· ${small2}`}</Chip>
+        )}
         <Chip active={step==='big'} done={!!big}>Grande {big && `· ${big}`}</Chip>
       </div>
 
