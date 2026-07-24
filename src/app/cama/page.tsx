@@ -26,6 +26,12 @@ export default function CamaPage() {
   const [importBusy, setImportBusy] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
   const [showImport, setShowImport] = useState(false);
+
+  // Export packing list
+  const [showExport, setShowExport] = useState(false);
+  const [expOnlyScanned, setExpOnlyScanned] = useState(false);
+  const [expPartida, setExpPartida] = useState('');
+  const [expPallet, setExpPallet] = useState('');
   const [uploadPct, setUploadPct] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<'idle'|'uploading'|'processing'|'done'>('idle');
 
@@ -165,6 +171,10 @@ export default function CamaPage() {
           <p className="text-slate-400 text-sm">Escanea Serie (SN Dell) o Inventario. Al lado ves la lista de la orden en el orden del file para saber cuál sigue.</p>
         </div>
         <div className="flex gap-2 items-center">
+          <button onClick={() => setShowExport((v) => !v)}
+            className="rounded bg-emerald-700 hover:bg-emerald-600 px-3 py-1 text-white text-xs font-bold">
+            {showExport ? '× cerrar' : '📦 Packing List'}
+          </button>
           <button onClick={() => setShowImport((v) => !v)}
             className="rounded bg-slate-700 hover:bg-slate-600 px-3 py-1 text-white text-xs font-bold">
             {showImport ? '× cerrar' : '📥 Importar'}
@@ -176,6 +186,45 @@ export default function CamaPage() {
           </label>
         </div>
       </div>
+
+      {showExport && (
+        <div className="rounded-lg border border-emerald-700/60 bg-slate-900 p-5 space-y-3">
+          <div className="font-bold text-white">📦 Exportar Packing List de Pallets</div>
+          <div className="text-xs text-slate-400">
+            Genera un Excel con 2 hojas: <b className="text-slate-300">Resumen</b> (1 renglón por pallet: camas, órdenes, avance)
+            y <b className="text-slate-300">Detalle</b> (1 renglón por equipo con Pallet/Cama/Position/Serie/Inventario).
+          </div>
+
+          <div className="flex flex-wrap gap-4 items-end">
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={expOnlyScanned} onChange={(e) => setExpOnlyScanned(e.target.checked)}/>
+              Solo equipos ya escaneados
+            </label>
+            <label className="text-sm flex flex-col gap-1">
+              <span className="text-slate-400 text-xs">Partida (opcional)</span>
+              <input value={expPartida} onChange={(e) => setExpPartida(e.target.value)}
+                placeholder="ej. 1520" className="rounded bg-slate-800 border border-slate-700 px-2 py-1 text-sm w-32"/>
+            </label>
+            <label className="text-sm flex flex-col gap-1">
+              <span className="text-slate-400 text-xs">Pallet (opcional)</span>
+              <input value={expPallet} onChange={(e) => setExpPallet(e.target.value)}
+                placeholder="ej. 2" className="rounded bg-slate-800 border border-slate-700 px-2 py-1 text-sm w-28"/>
+            </label>
+            <a
+              href={`/api/export/pallets?${new URLSearchParams({
+                ...(expOnlyScanned ? { only: 'scanned' } : {}),
+                ...(expPartida.trim() ? { partida: expPartida.trim() } : {}),
+                ...(expPallet.trim() ? { pallet: expPallet.trim() } : {}),
+              }).toString()}`}
+              className="rounded bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-white font-bold text-sm">
+              ⬇ Descargar Excel
+            </a>
+          </div>
+          <div className="text-[11px] text-slate-500">
+            Sin filtros exporta TODOS los pallets. Los filtros son acumulativos.
+          </div>
+        </div>
+      )}
 
       {showImport && (
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-5 space-y-3">
