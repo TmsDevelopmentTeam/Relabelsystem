@@ -77,44 +77,70 @@ export async function GET(req: NextRequest) {
   const wb = XLSX.utils.book_new();
   const hoy = new Date().toISOString().slice(0, 10);
 
-  // ---------- Hoja 1: Resumen ----------
-  const resumen = ordered.map(([key, list]) => {
+  // Agrupa una lista por producto (separado, NO combinado) en orden alfabético.
+  const porProducto = (list: typeof items) => {
+    const m = new Map<string, typeof items>();
+    for (const u of list) {
+      const p = u.producto ?? '(sin producto)';
+      if (!m.has(p)) m.set(p, [] as any);
+      m.get(p)!.push(u);
+    }
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  };
+
+  // ---------- Hoja 1: Resumen (SEPARADO por producto: 1 fila por pallet + producto) ----------
+  const resumen: any[] = [];
+  for (const [key, list] of ordered) {
     const [pt, pl] = key.split('||');
-    const camas = uniq(list.map((x) => x.cama));
-    const escaneados = list.filter((x) => x.scannedAt).length;
-    return {
-      Hoja: names.get(key)!,
-      Partida: pt,
-      Pallet: pl,
-      'Total Equipos': list.length,
-      '# Camas': camas.length,
-      Camas: camas.join(', '),
-      'Órdenes Dell': uniq(list.map((x) => x.ordenDell)).join(', '),
-      Productos: uniq(list.map((x) => x.producto)).join(', '),
+    for (const [prod, sub] of porProducto(list)) {
+      const camas = uniq(sub.map((x) => x.cama));
+      const escaneados = sub.filter((x) => x.scannedAt).length;
+      resumen.push({
+        Hoja: names.get(key)!,
+        Partida: pt,
+        Pallet: pl,
+        Producto: prod,
+        Cantidad: sub.length,
+        '# Camas': camas.length,
+        Camas: camas.join(', '),
+        'Órdenes Dell': uniq(sub.map((x) => x.ordenDell)).join(', '),
+        Escaneados: escaneados,
+        Pendientes: sub.length - escaneados,
+        '% Completado': sub.length ? Math.round((escaneados / sub.length) * 100) : 0,
+      });
+    }
+  }
+  // Totales por producto (global) al final
+  resumen.push({});
+  for (const [prod, sub] of porProducto(items)) {
+    const escaneados = sub.filter((x) => x.scannedAt).length;
+    resumen.push({
+      Hoja: 'TOTAL',
+      Partida: '',
+      Pallet: '',
+      Producto: prod,
+      Cantidad: sub.length,
+      '# Camas': '',
+      Camas: '',
+      'Órdenes Dell': `${uniq(sub.map((x) => x.ordenDell)).length} órdenes`,
       Escaneados: escaneados,
-      Pendientes: list.length - escaneados,
-      '% Completado': list.length ? Math.round((escaneados / list.length) * 100) : 0,
-    };
-  });
+      Pendientes: sub.length - escaneados,
+      '% Completado': sub.length ? Math.round((escaneados / sub.length) * 100) : 0,
+    });
+  }
   const escTot = items.filter((x) => x.scannedAt).length;
   resumen.push({
-    Hoja: '',
-    Partida: 'TOTAL',
-    Pallet: `${ordered.length} pallets`,
-    'Total Equipos': items.length,
-    '# Camas': uniq(items.map((x) => `${x.partida}|${x.pallet}|${x.cama}`)).length,
-    Camas: '',
+    Hoja: 'TOTAL', Partida: '', Pallet: '', Producto: '➤ TODOS',
+    Cantidad: items.length, '# Camas': '', Camas: '',
     'Órdenes Dell': `${uniq(items.map((x) => x.ordenDell)).length} órdenes`,
-    Productos: '',
-    Escaneados: escTot,
-    Pendientes: items.length - escTot,
+    Escaneados: escTot, Pendientes: items.length - escTot,
     '% Completado': items.length ? Math.round((escTot / items.length) * 100) : 0,
   });
 
   const wsResumen = XLSX.utils.json_to_sheet(resumen);
   wsResumen['!cols'] = [
-    { wch: 16 }, { wch: 14 }, { wch: 9 }, { wch: 14 }, { wch: 9 }, { wch: 22 },
-    { wch: 40 }, { wch: 34 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+    { wch: 16 }, { wch: 12 }, { wch: 8 }, { wch: 32 }, { wch: 10 }, { wch: 8 }, { wch: 20 },
+    { wch: 34 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
   ];
   XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
 
@@ -149,6 +175,10 @@ export async function GET(req: NextRequest) {
     const camas = uniq(list.map((x) => x.cama));
     const escaneados = list.filter((x) => x.scannedAt).length;
 
+    const grupos = porProducto(list);
+    // Desglose por producto para el encabezado: "Monitor...: 72 · Dell Pro Slim: 30"
+    const desglose = grupos.map(([prod, sub]) => `${prod}: ${sub.length}`).join('  ·  ');
+
     const aoa: (string | number)[][] = [
       ['PACKING LIST'],
       [],
@@ -156,32 +186,46 @@ export async function GET(req: NextRequest) {
       ['Partida:', pt, '', 'Pallet:', pl],
       ['Total de piezas:', list.length, '', 'Camas:', camas.join(', ')],
       ['Órdenes Dell:', ordenes.join(', ')],
+      ['Desglose:', desglose],
       ['Fecha:', hoy, '', 'Escaneados:', `${escaneados} / ${list.length}`],
       [],
-      ['#', 'Cama', 'Position', 'Serie (SN)', 'Inventario', 'Producto', 'Orden Dell', 'Escaneado'],
     ];
-    list.forEach((u, i) => {
-      aoa.push([
-        i + 1, u.cama ?? '', u.position ?? '', u.assetTag, u.inventario,
-        u.producto ?? '', u.ordenDell ?? '', u.scannedAt ? 'SI' : 'NO',
-      ]);
-    });
-    aoa.push([]);
-    aoa.push(['', '', '', 'TOTAL PIEZAS:', list.length]);
+
+    // Contenido SEPARADO por producto: cada producto su sección, subtotal y numeración propia.
+    for (const [prod, sub] of grupos) {
+      const escSub = sub.filter((x) => x.scannedAt).length;
+      sub.sort((a, b) =>
+        numOr(a.cama) - numOr(b.cama) ||
+        String(a.cama ?? '').localeCompare(String(b.cama ?? '')) ||
+        numOr(a.position) - numOr(b.position)
+      );
+      aoa.push([`▸ ${prod}  (${sub.length} piezas · ${escSub}/${sub.length} escaneadas)`]);
+      aoa.push(['#', 'Cama', 'Position', 'Serie (SN)', 'Inventario', 'Orden Dell', 'Escaneado']);
+      sub.forEach((u, i) => {
+        aoa.push([
+          i + 1, u.cama ?? '', u.position ?? '', u.assetTag, u.inventario,
+          u.ordenDell ?? '', u.scannedAt ? 'SI' : 'NO',
+        ]);
+      });
+      aoa.push(['', '', '', '', '', `SUBTOTAL ${prod}:`, sub.length]);
+      aoa.push([]);
+    }
+
+    aoa.push(['', '', '', 'TOTAL PALLET:', list.length]);
     aoa.push([]);
     aoa.push(['Armó:', '________________________', '', 'Recibió:', '________________________']);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [
-      { wch: 5 }, { wch: 8 }, { wch: 10 }, { wch: 14 },
-      { wch: 16 }, { wch: 30 }, { wch: 14 }, { wch: 11 },
+      { wch: 6 }, { wch: 8 }, { wch: 10 }, { wch: 14 },
+      { wch: 16 }, { wch: 16 }, { wch: 12 },
     ];
     ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
-      { s: { r: 2, c: 1 }, e: { r: 2, c: 7 } },
-      { s: { r: 5, c: 1 }, e: { r: 5, c: 7 } },
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, // título
+      { s: { r: 2, c: 1 }, e: { r: 2, c: 6 } }, // cliente
+      { s: { r: 5, c: 1 }, e: { r: 5, c: 6 } }, // órdenes
+      { s: { r: 6, c: 1 }, e: { r: 6, c: 6 } }, // desglose
     ];
-    ws['!printHeader'] = [9, 9];
     XLSX.utils.book_append_sheet(wb, ws, names.get(key)!);
   }
 
