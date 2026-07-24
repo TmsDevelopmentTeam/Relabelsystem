@@ -187,13 +187,15 @@ export default function CamaPage() {
         </div>
       </div>
 
-      {showExport && (
+      {showExport && (() => {
+        const expQuery = new URLSearchParams({
+          ...(expOnlyScanned ? { only: 'scanned' } : {}),
+          ...(expPartida.trim() ? { partida: expPartida.trim() } : {}),
+          ...(expPallet.trim() ? { pallet: expPallet.trim() } : {}),
+        }).toString();
+        return (
         <div className="rounded-lg border border-emerald-700/60 bg-slate-900 p-5 space-y-3">
-          <div className="font-bold text-white">📦 Exportar Packing List de Pallets</div>
-          <div className="text-xs text-slate-400">
-            Genera un Excel con 2 hojas: <b className="text-slate-300">Resumen</b> (1 renglón por pallet: camas, órdenes, avance)
-            y <b className="text-slate-300">Detalle</b> (1 renglón por equipo con Pallet/Cama/Position/Serie/Inventario).
-          </div>
+          <div className="font-bold text-white">📦 Exportar Pallets / Packing List</div>
 
           <div className="flex flex-wrap gap-4 items-end">
             <label className="flex items-center gap-2 text-sm text-slate-300">
@@ -210,21 +212,42 @@ export default function CamaPage() {
               <input value={expPallet} onChange={(e) => setExpPallet(e.target.value)}
                 placeholder="ej. 2" className="rounded bg-slate-800 border border-slate-700 px-2 py-1 text-sm w-28"/>
             </label>
-            <a
-              href={`/api/export/pallets?${new URLSearchParams({
-                ...(expOnlyScanned ? { only: 'scanned' } : {}),
-                ...(expPartida.trim() ? { partida: expPartida.trim() } : {}),
-                ...(expPallet.trim() ? { pallet: expPallet.trim() } : {}),
-              }).toString()}`}
-              className="rounded bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-white font-bold text-sm">
-              ⬇ Descargar Excel
-            </a>
           </div>
+
+          <div className="grid sm:grid-cols-2 gap-3 pt-1">
+            <div className="rounded border border-emerald-700/40 bg-slate-950 p-3 space-y-2">
+              <div className="text-sm font-bold text-emerald-300">📋 Packing List (imprimible)</div>
+              <div className="text-[11px] text-slate-400 leading-relaxed">
+                <b className="text-slate-300">Una hoja por pallet.</b> Cada hoja con encabezado del cliente
+                (Radiomóvil Dipsa / Telcel), partida, pallet, total de piezas, órdenes Dell, fecha,
+                la tabla del contenido y firmas de Armó / Recibió. Listo para imprimir y pegar en la tarima.
+              </div>
+              <a href={`/api/export/packing-list?${expQuery}`}
+                className="inline-block rounded bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-white font-bold text-sm">
+                ⬇ Descargar Packing List
+              </a>
+            </div>
+
+            <div className="rounded border border-slate-700 bg-slate-950 p-3 space-y-2">
+              <div className="text-sm font-bold text-sky-300">📊 Reporte de Pallets</div>
+              <div className="text-[11px] text-slate-400 leading-relaxed">
+                <b className="text-slate-300">Excel de 2 hojas.</b> «Resumen» con un renglón por pallet
+                (camas, órdenes, escaneados, % avance) y «Detalle» con un renglón por equipo y autofilter.
+                Para revisar y controlar en pantalla.
+              </div>
+              <a href={`/api/export/pallets?${expQuery}`}
+                className="inline-block rounded bg-sky-600 hover:bg-sky-500 px-4 py-2 text-white font-bold text-sm">
+                ⬇ Descargar Reporte
+              </a>
+            </div>
+          </div>
+
           <div className="text-[11px] text-slate-500">
-            Sin filtros exporta TODOS los pallets. Los filtros son acumulativos.
+            Sin filtros exporta TODOS los pallets. Los filtros son acumulativos y aplican a ambas descargas.
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showImport && (
         <div className="rounded-lg border border-slate-700 bg-slate-900 p-5 space-y-3">
