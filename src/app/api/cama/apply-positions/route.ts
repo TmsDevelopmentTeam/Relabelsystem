@@ -16,13 +16,15 @@ export async function POST(req: NextRequest) {
   for (const it of items) {
     const u = await prisma.ubicacion.findUnique({ where: { assetTag: it.assetTag } });
     if (!u) { changes.push({ assetTag: it.assetTag, skipped: 'NOT_FOUND' }); continue; }
-    if (u.pallet === it.pallet && u.cama === it.cama && u.position === it.position) {
+    const to: any = { pallet: it.pallet, cama: it.cama, position: it.position };
+    if (it.partida) to.partida = it.partida;
+    if (u.pallet === it.pallet && u.cama === it.cama && u.position === it.position && (!it.partida || u.partida === it.partida)) {
       changes.push({ assetTag: it.assetTag, skipped: 'SAME' });
       continue;
     }
     changes.push({ id: u.id, assetTag: it.assetTag,
-      from: { pallet: u.pallet, cama: u.cama, position: u.position },
-      to: { pallet: it.pallet, cama: it.cama, position: it.position } });
+      from: { pallet: u.pallet, cama: u.cama, position: u.position, partida: u.partida },
+      to });
   }
 
   if (dry) {
