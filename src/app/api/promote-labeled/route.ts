@@ -9,14 +9,21 @@ export const dynamic = 'force-dynamic';
 // pero en la práctica ya están matched.
 export async function POST(req: NextRequest) {
   const operator = req.nextUrl.searchParams.get('operator') || 'admin-promote';
+  const from = (req.nextUrl.searchParams.get('from') || 'LABELED').toUpperCase();
+  const type = req.nextUrl.searchParams.get('type')?.toUpperCase();
+  const order = req.nextUrl.searchParams.get('order')?.trim();
+
+  const where: any = { status: from };
+  if (type) where.equipmentType = type;
+  if (order) where.OR = [{ ordenDell: order }, { po: order }];
 
   const laggards = await prisma.equipment.findMany({
-    where: { status: 'LABELED' },
-    select: { id: true, assetTag: true, inventario: true },
+    where,
+    select: { id: true, assetTag: true, inventario: true, equipmentType: true, ordenDell: true },
   });
 
   const res = await prisma.equipment.updateMany({
-    where: { status: 'LABELED' },
+    where,
     data: { status: 'MATCHED', matchedAt: new Date(), matchedBy: operator },
   });
 
