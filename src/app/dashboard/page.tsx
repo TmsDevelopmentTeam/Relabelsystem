@@ -5,18 +5,21 @@ import { useEffect, useState } from 'react';
 export default function DashboardPage() {
   const [s, setS] = useState<any>(null);
   const [daily, setDaily] = useState<any>(null);
+  const [rate, setRate] = useState<any>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetInput, setResetInput] = useState('');
   const [resetBusy, setResetBusy] = useState(false);
   const [resetCountdown, setResetCountdown] = useState(5);
 
   async function load() {
-    const [res, resDaily] = await Promise.all([
+    const [res, resDaily, resRate] = await Promise.all([
       fetch('/api/stats', { cache: 'no-store' }),
       fetch('/api/stats/daily', { cache: 'no-store' }),
+      fetch('/api/stats/rate', { cache: 'no-store' }),
     ]);
     setS(await res.json());
     setDaily(await resDaily.json());
+    setRate(await resRate.json());
   }
   useEffect(() => { load(); const iv = setInterval(load, 3000); return ()=>clearInterval(iv); }, []);
 
@@ -120,6 +123,67 @@ export default function DashboardPage() {
           );
         })}
       </div>
+
+      {/* Velocidad de procesamiento */}
+      {rate && (
+        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+          <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+            <div className="text-sm text-slate-400">⚡ Velocidad de procesamiento (equipos MATCHED)</div>
+            <div className="text-xs text-slate-500">actualiza cada 3s</div>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-4">
+            <div className="rounded-lg bg-emerald-800/60 p-3 text-white">
+              <div className="text-xs opacity-80">Último minuto</div>
+              <div className="text-3xl font-black mt-1">{rate.min1}</div>
+              <div className="text-[10px] opacity-70">= {rate.min1}/min</div>
+            </div>
+            <div className="rounded-lg bg-emerald-700/60 p-3 text-white">
+              <div className="text-xs opacity-80">Últimos 10 min</div>
+              <div className="text-3xl font-black mt-1">{rate.min10}</div>
+              <div className="text-[10px] opacity-70">≈ {rate.ratePerMin}/min</div>
+            </div>
+            <div className="rounded-lg bg-emerald-600/60 p-3 text-white">
+              <div className="text-xs opacity-80">Últimos 30 min</div>
+              <div className="text-3xl font-black mt-1">{rate.min30}</div>
+              <div className="text-[10px] opacity-70">≈ {(rate.min30 / 30).toFixed(1)}/min</div>
+            </div>
+            <div className="rounded-lg bg-sky-700/60 p-3 text-white">
+              <div className="text-xs opacity-80">Última hora</div>
+              <div className="text-3xl font-black mt-1">{rate.hour1}</div>
+              <div className="text-[10px] opacity-70">/hora</div>
+            </div>
+            <div className="rounded-lg bg-sky-800/60 p-3 text-white">
+              <div className="text-xs opacity-80">Últimas 6 hrs</div>
+              <div className="text-3xl font-black mt-1">{rate.hour6}</div>
+              <div className="text-[10px] opacity-70">≈ {(rate.hour6 / 6).toFixed(0)}/hora</div>
+            </div>
+            <div className="rounded-lg bg-cyan-800/60 p-3 text-white">
+              <div className="text-xs opacity-80">Hoy</div>
+              <div className="text-3xl font-black mt-1">{rate.today}</div>
+              <div className="text-[10px] opacity-70">día completo</div>
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-400 mb-2">Distribución por hora (hoy)</div>
+          <div className="grid grid-cols-12 sm:grid-cols-24 gap-1" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
+            {rate.hourly.map((h: any) => {
+              const heightPct = h.count > 0 ? Math.max(6, (h.count / rate.maxHour) * 100) : 0;
+              return (
+                <div key={h.hour} className="flex flex-col items-center gap-1" title={`${String(h.hour).padStart(2,'0')}:00 · ${h.count} equipos`}>
+                  <div className="w-full bg-slate-950 rounded-sm relative" style={{ height: '60px' }}>
+                    {h.count > 0 && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-sm"
+                        style={{ height: `${heightPct}%` }}/>
+                    )}
+                  </div>
+                  <div className="text-[9px] text-slate-500 font-mono">{String(h.hour).padStart(2,'0')}</div>
+                  <div className="text-[10px] text-emerald-300 font-mono font-bold">{h.count || ''}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Procesadas por día */}
       {daily && daily.days.length > 0 && (
