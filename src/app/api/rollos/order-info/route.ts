@@ -27,7 +27,15 @@ export async function GET(req: NextRequest) {
   const otherCount = equipmentCount - laptopCount;
   const expectedLabels = laptopCount * 2 + otherCount * 1;
 
-  const scannedInRoll = await prisma.labelRoll.count({ where: { orderNumber: order } });
+  const rollAll = await prisma.labelRoll.findMany({
+    where: { orderNumber: order },
+    select: { value: true },
+  });
+  const scannedInRoll = rollAll.length;
+
+  // El operador cuenta EQUIPOS, no etiquetas. Una laptop lleva 2 etiquetas
+  // repetidas (mismo inventario), así que 96 etiquetas = 48 equipos.
+  const scannedEquipos = new Set(rollAll.map((r) => r.value)).size;
 
   return NextResponse.json({
     order,
@@ -36,6 +44,9 @@ export async function GET(req: NextRequest) {
     otherCount,
     expectedLabels,
     scannedInRoll,
+    scannedEquipos,
+    remainingEquipos: Math.max(equipmentCount - scannedEquipos, 0),
+    completedPctEquipos: equipmentCount > 0 ? Math.min(100, Math.round((scannedEquipos / equipmentCount) * 100)) : 0,
     remaining: Math.max(expectedLabels - scannedInRoll, 0),
     completedPct: expectedLabels > 0 ? Math.min(100, Math.round((scannedInRoll / expectedLabels) * 100)) : 0,
     complete: scannedInRoll >= expectedLabels && expectedLabels > 0,

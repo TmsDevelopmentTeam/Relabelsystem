@@ -75,8 +75,41 @@ export async function POST(req: NextRequest) {
           orderBy: { id: 'asc' },
         }));
     }
-    const rollPosition = rollEntry?.position ?? rollEntry?.id ?? null;
+    const rollLabelPosition = rollEntry?.position ?? rollEntry?.id ?? null;
     const rollOrder = rollEntry?.orderNumber ?? null;
+
+    // El rollo físico trae 2 etiquetas por laptop (repetidas, mismo inventario),
+    // así que las positions crudas van 1..96 para 48 laptops. El operador cuenta
+    // EQUIPOS, no etiquetas: renumeramos por inventario distinto en orden de
+    // aparición → 1..48. Para monitor/CPU (1 etiqueta c/u) el número no cambia.
+    let rollPosition = rollLabelPosition;
+    let rollLabelPositions: number[] = typeof rollLabelPosition === 'number' ? [rollLabelPosition] : [];
+    let rollTotalEquipos: number | null = null;
+    let rollTotalEtiquetas: number | null = null;
+
+    if (rollOrder) {
+      const rollAll = await prisma.labelRoll.findMany({
+        where: { orderNumber: rollOrder },
+        orderBy: { position: 'asc' },
+        select: { value: true, position: true },
+      });
+      rollTotalEtiquetas = rollAll.length;
+
+      const ordinalPorValor = new Map<string, number>();
+      const posicionesPorValor = new Map<string, number[]>();
+      for (const r of rollAll) {
+        if (!ordinalPorValor.has(r.value)) ordinalPorValor.set(r.value, ordinalPorValor.size + 1);
+        if (!posicionesPorValor.has(r.value)) posicionesPorValor.set(r.value, []);
+        if (typeof r.position === 'number') posicionesPorValor.get(r.value)!.push(r.position);
+      }
+      rollTotalEquipos = ordinalPorValor.size;
+
+      const ord = ordinalPorValor.get(inventarioResolved);
+      if (ord) {
+        rollPosition = ord;
+        rollLabelPositions = posicionesPorValor.get(inventarioResolved) ?? rollLabelPositions;
+      }
+    }
     // Si escaneó asset tag y no hay rollo en su orden, avisar (rollMissingForOrder=true)
     const rollMissingForOrder = !isInventario && !rollEntry && equipoOrder != null;
 
@@ -110,7 +143,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       equipment: updated,
-      rollPosition,
+      rollPosition,           // # de EQUIPO en el rollo (1..48), es lo que ve el operador
+      rollLabelPosition,      // # de etiqueta física cruda (1..96), para diagnóstico
+      rollLabelPositions,     // todas las positions físicas de este inventario
+      rollTotalEquipos,
+      rollTotalEtiquetas,
       rollOrder,
       rollMissingForOrder,
       equipoOrder,

@@ -111,9 +111,35 @@ export async function POST(req: NextRequest) {
       select: { assetTag: true, producto: true, equipmentType: true },
     });
 
-    const totalForOrder = await prisma.labelRoll.count({ where: { orderNumber } });
+    // El operador cuenta EQUIPOS, no etiquetas: una laptop lleva 2 etiquetas
+    // repetidas (mismo inventario), así que las positions crudas llegan a 96
+    // para 48 laptops. Renumeramos por inventario distinto en orden de
+    // aparición → equipoNum 1..48. Para monitor/CPU el número no cambia.
+    const rollAll = await prisma.labelRoll.findMany({
+      where: { orderNumber },
+      orderBy: { position: 'asc' },
+      select: { value: true },
+    });
+    const ordinalPorValor = new Map<string, number>();
+    for (const r of rollAll) {
+      if (!ordinalPorValor.has(r.value)) ordinalPorValor.set(r.value, ordinalPorValor.size + 1);
+    }
+    const equipoNum = ordinalPorValor.get(value) ?? null;
+    const totalEquiposEnRollo = ordinalPorValor.size;
+    const etiquetasDeEsteEquipo = rollAll.filter((r) => r.value === value).length;
+
+    const totalForOrder = rollAll.length;
     const totalOverall = await prisma.labelRoll.count();
-    return NextResponse.json({ ok: true, entry: created, totalForOrder, totalOverall, equipment: eqInOrder });
+    return NextResponse.json({
+      ok: true,
+      entry: created,
+      equipoNum,               // # de EQUIPO en el rollo (1..48)
+      totalEquiposEnRollo,
+      etiquetasDeEsteEquipo,   // 2 para laptop, 1 para monitor/CPU
+      totalForOrder,           // # de etiquetas físicas (1..96)
+      totalOverall,
+      equipment: eqInOrder,
+    });
   } catch (e: any) {
     console.error(e);
     return NextResponse.json({ error: e?.message ?? 'Error' }, { status: 500 });

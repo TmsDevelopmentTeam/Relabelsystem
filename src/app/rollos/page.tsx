@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ScanInput, beepOK, siren, useOperator } from '@/components/ScanInput';
 
 type Entry = { id: number; orderNumber: string | null; position: number | null; value: string; status: string; operator: string | null; createdAt: string };
-type OrderInfo = { order: string; equipmentCount: number; laptopCount: number; otherCount: number; expectedLabels: number; scannedInRoll: number; remaining: number; completedPct: number; complete: boolean };
+type OrderInfo = { order: string; equipmentCount: number; laptopCount: number; otherCount: number; expectedLabels: number; scannedInRoll: number; remaining: number; completedPct: number; complete: boolean; scannedEquipos?: number; remainingEquipos?: number; completedPctEquipos?: number };
 
 export default function RollosPage() {
   const op = useOperator();
@@ -18,7 +18,7 @@ export default function RollosPage() {
   const [ordersSummary, setOrdersSummary] = useState<{ orders: { orderNumber: string | null; count: number }[]; overall: number } | null>(null);
   const [lastId, setLastId] = useState<number | null>(null);
   const [wrongOrder, setWrongOrder] = useState<{ scanned: string; expectedOrder: string; equipment: any } | null>(null);
-  const [lastConfirm, setLastConfirm] = useState<{ position: number; value: string; equipment: any } | null>(null);
+  const [lastConfirm, setLastConfirm] = useState<{ position: number; value: string; equipment: any; equipoNum?: number | null; totalEquiposEnRollo?: number; etiquetasDeEsteEquipo?: number } | null>(null);
 
   useEffect(() => {
     setOperator(op.get());
@@ -67,7 +67,11 @@ export default function RollosPage() {
       if (json.ok) {
         beepOK();
         setLastId(json.entry.id);
-        setLastConfirm({ position: json.entry.position, value: json.entry.value, equipment: json.equipment });
+        setLastConfirm({
+          position: json.entry.position, value: json.entry.value, equipment: json.equipment,
+          equipoNum: json.equipoNum, totalEquiposEnRollo: json.totalEquiposEnRollo,
+          etiquetasDeEsteEquipo: json.etiquetasDeEsteEquipo,
+        });
         setWrongOrder(null);
         await load(); await loadInfo(); await loadSummary();
         setValue('');
@@ -162,19 +166,21 @@ export default function RollosPage() {
             <div className="flex justify-between items-center flex-wrap gap-2 text-sm">
               <div className="text-white">
                 <b>{orderInfo.equipmentCount}</b> equipos ({orderInfo.laptopCount} laptop, {orderInfo.otherCount} otros)
-                → esperadas <b className="text-cyan-300">{orderInfo.expectedLabels}</b> etiquetas
+                {orderInfo.laptopCount > 0 && (
+                  <span className="text-slate-400"> · 2 etiquetas por laptop</span>
+                )}
               </div>
               <div className={`font-mono text-lg ${orderInfo.complete ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {orderInfo.scannedInRoll} / {orderInfo.expectedLabels}
+                {orderInfo.scannedEquipos ?? orderInfo.scannedInRoll} / {orderInfo.equipmentCount} equipos
                 {orderInfo.complete && ' ✅'}
               </div>
             </div>
             <div className="mt-2 h-3 bg-slate-800 rounded overflow-hidden">
               <div className={`h-full transition-all ${orderInfo.complete ? 'bg-emerald-500' : 'bg-cyan-500'}`}
-                style={{ width: `${orderInfo.completedPct}%` }}/>
+                style={{ width: `${orderInfo.completedPctEquipos ?? orderInfo.completedPct}%` }}/>
             </div>
             <div className="text-xs text-slate-400 mt-1">
-              Faltan <b>{orderInfo.remaining}</b> · Próxima posición <b>#{nextPosition}</b>
+              Faltan <b>{orderInfo.remainingEquipos ?? orderInfo.remaining}</b> equipos
             </div>
           </div>
         )}
@@ -207,7 +213,10 @@ export default function RollosPage() {
       {orderNumber && scanning && (
         <div className="rounded-lg bg-slate-900 border-2 border-teal-500 p-5">
           <label className="block text-lg text-slate-200 mb-3">
-            Escanea etiqueta → <span className="text-teal-400">orden {orderNumber} · posición #{nextPosition}</span>
+            Escanea etiqueta → <span className="text-teal-400">
+              orden {orderNumber}
+              {orderInfo ? ` · equipo ${(orderInfo.scannedEquipos ?? 0)} / ${orderInfo.equipmentCount}` : ''}
+            </span>
           </label>
           <ScanInput value={value} onChange={setValue} onSubmit={() => submit(false)} disabled={busy}
             placeholder="Etiqueta…" borderColor="border-teal-500" armed={true}/>
@@ -219,9 +228,19 @@ export default function RollosPage() {
         <div className="rounded-lg bg-emerald-700 p-4 text-white border-2 border-white">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <div className="text-xs uppercase opacity-80">✅ Guardado en posición</div>
-              <div className="text-4xl font-black">#{lastConfirm.position}</div>
+              <div className="text-xs uppercase opacity-80">✅ Guardado · Equipo</div>
+              <div className="text-4xl font-black">
+                #{lastConfirm.equipoNum ?? lastConfirm.position}
+                {lastConfirm.totalEquiposEnRollo ? (
+                  <span className="text-xl font-bold opacity-60"> / {lastConfirm.totalEquiposEnRollo}</span>
+                ) : null}
+              </div>
               <div className="text-xl font-mono mt-1">{lastConfirm.value}</div>
+              {(lastConfirm.etiquetasDeEsteEquipo ?? 1) > 1 && (
+                <div className="text-xs opacity-80 mt-1">
+                  🏷️ etiqueta <b>{lastConfirm.etiquetasDeEsteEquipo}</b> de 2 de este equipo
+                </div>
+              )}
             </div>
             {lastConfirm.equipment && (
               <div className="text-right">

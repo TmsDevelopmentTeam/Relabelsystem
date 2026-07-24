@@ -78,11 +78,22 @@ export default function UbicarPage() {
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div className="text-white rounded-xl bg-black/40 p-4 border-2 border-white">
                       <div className="text-sm uppercase opacity-80">🎞️ POSICIÓN EN EL ROLLO</div>
-                      <div className="text-7xl font-black mt-1">#{last.rollPosition}</div>
+                      <div className="text-7xl font-black mt-1">
+                        #{last.rollPosition}
+                        {last.rollTotalEquipos ? (
+                          <span className="text-2xl font-bold opacity-60"> / {last.rollTotalEquipos}</span>
+                        ) : null}
+                      </div>
                       {last.rollOrder && (
                         <div className="text-sm opacity-90 mt-1">Orden: <b className="font-mono">{last.rollOrder}</b></div>
                       )}
-                      <div className="text-xs opacity-70 mt-1">Etiqueta del rollo</div>
+                      {last.rollLabelPositions && last.rollLabelPositions.length > 1 ? (
+                        <div className="text-xs opacity-70 mt-1">
+                          Lleva <b>{last.rollLabelPositions.length} etiquetas</b> iguales del rollo
+                        </div>
+                      ) : (
+                        <div className="text-xs opacity-70 mt-1">Etiqueta del rollo</div>
+                      )}
                     </div>
 
                     {last.ubicacion && last.ubicacion.position && (
