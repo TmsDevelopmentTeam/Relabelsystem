@@ -65,6 +65,9 @@ export default function DashboardPage() {
           <a href="/api/export" className="rounded bg-sky-600 hover:bg-sky-500 px-4 py-2 text-white text-sm font-bold">
             ⬇ Export Excel
           </a>
+          <a href="/api/export/pallets-full" className="rounded bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-white text-sm font-bold">
+            📦 Packing List
+          </a>
           <button
             onClick={() => setResetOpen(true)}
             className="rounded bg-red-800 hover:bg-red-700 px-4 py-2 text-white text-sm font-bold"

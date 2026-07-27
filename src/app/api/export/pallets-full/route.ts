@@ -168,6 +168,54 @@ export async function GET(req: NextRequest) {
   if (wsDetalle['!ref']) wsDetalle['!autofilter'] = { ref: wsDetalle['!ref'] };
   XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle');
 
+  // ---------- Hojas consolidadas: TODO un producto en una sola lista ----------
+  // (ej. TODOS los Dell Pro Slim juntos, no repartidos por pestaña de pallet)
+  const usedProdNames = new Set<string>(wb.SheetNames);
+  const prodSheetName = (prod: string) => {
+    let name = prod.replace(/[\\/?*[\]:]/g, '-').slice(0, 31);
+    let n = 2;
+    while (usedProdNames.has(name)) {
+      const sfx = `~${n++}`;
+      name = name.slice(0, 31 - sfx.length) + sfx;
+    }
+    usedProdNames.add(name);
+    return name;
+  };
+  for (const [prod, sub] of porProducto(items)) {
+    sub.sort((a, b) =>
+      String(a.partida ?? '').localeCompare(String(b.partida ?? '')) ||
+      numOr(a.pallet) - numOr(b.pallet) || String(a.pallet ?? '').localeCompare(String(b.pallet ?? '')) ||
+      numOr(a.cama) - numOr(b.cama) || String(a.cama ?? '').localeCompare(String(b.cama ?? '')) ||
+      numOr(a.position) - numOr(b.position)
+    );
+    const escaneados = sub.filter((x) => x.scannedAt).length;
+    const aoa: (string | number)[][] = [
+      [prod.toUpperCase()],
+      [`Total: ${sub.length}`, '', `Escaneados: ${escaneados} / ${sub.length}`, '', `Cliente: ${CLIENTE}`, '', `Fecha: ${hoy}`],
+      [],
+      ['#', 'Partida', 'Pallet', 'Cama', 'Position', 'Serie (SN)', 'Inventario', 'Orden Dell', 'Escaneado'],
+    ];
+    sub.forEach((u, i) => {
+      aoa.push([
+        i + 1, u.partida ?? '', u.pallet ?? '', u.cama ?? '', u.position ?? '',
+        u.assetTag, u.inventario, u.ordenDell ?? '', u.scannedAt ? 'SI' : 'NO',
+      ]);
+    });
+    aoa.push([]);
+    aoa.push(['', '', '', '', '', '', '', 'TOTAL:', sub.length]);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [
+      { wch: 6 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 10 },
+      { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 11 },
+    ];
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+    ];
+    if (ws['!ref']) ws['!autofilter'] = { ref: `A4:I${4 + sub.length}` };
+    XLSX.utils.book_append_sheet(wb, ws, prodSheetName(prod));
+  }
+
   // ---------- Una hoja de packing list por pallet ----------
   for (const [key, list] of ordered) {
     const [pt, pl] = key.split('||');
