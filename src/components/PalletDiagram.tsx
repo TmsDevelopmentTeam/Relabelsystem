@@ -17,9 +17,9 @@ export default function PalletDiagram({ position }: Props) {
   const perCama = 18, camas = 4;
   const camaDe = pos != null ? Math.ceil(pos / perCama) : null;
 
-  // Caja isométrica (fondo largo, como el original)
-  const FBL: Pt = [120, 470], FBR: Pt = [470, 470], FTR: Pt = [470, 180], FTL: Pt = [120, 180];
-  const Dv: Pt = [320, -150];
+  // Caja isométrica (alta y de fondo largo, como el original)
+  const FBL: Pt = [120, 500], FBR: Pt = [430, 500], FTR: Pt = [430, 150], FTL: Pt = [120, 150];
+  const Dv: Pt = [360, -120];
   const BBL: Pt = [FBL[0] + Dv[0], FBL[1] + Dv[1]], BBR: Pt = [FBR[0] + Dv[0], FBR[1] + Dv[1]];
   const BTR: Pt = [FTR[0] + Dv[0], FTR[1] + Dv[1]], BTL: Pt = [FTL[0] + Dv[0], FTL[1] + Dv[1]];
 
@@ -114,6 +114,18 @@ export default function PalletDiagram({ position }: Props) {
             <line x1={right(0, k / 4)[0]} y1={right(0, k / 4)[1]} x2={right(1, k / 4)[0]} y2={right(1, k / 4)[1]} stroke="#111" strokeWidth="1" />
           </g>
         ))}
+
+        {/* rejilla completa de placas delgadas (frente 8, derecha 5, arriba 9) */}
+        {Array.from({ length: camas }).flatMap((_, ki) => {
+          const k = ki + 1; const [v0, v1] = band(k); const out: any[] = [];
+          for (let c = 0; c < 8; c++) { const r = cell(front, c / 8, (c + 1) / 8, v0, v1); out.push(<polygon key={`fg${k}-${c}`} points={poly(r.pts)} fill="none" stroke="#444" strokeWidth="0.7" />); }
+          for (let d = 0; d < 5; d++) { const r = cell(right, d / 5, (d + 1) / 5, v0, v1); out.push(<polygon key={`rg${k}-${d}`} points={poly(r.pts)} fill="none" stroke="#444" strokeWidth="0.7" />); }
+          return out;
+        })}
+        {Array.from({ length: 9 }).map((_, i) => {
+          const cc = i % 3, rr = Math.floor(i / 3); const r = cell(top, cc / 3, (cc + 1) / 3, rr / 3, (rr + 1) / 3);
+          return <polygon key={`tg${i}`} points={poly(r.pts)} fill="none" stroke="#444" strokeWidth="0.7" />;
+        })}
 
         {/* resaltar cama si interior */}
         {interior && camaDe != null && (
