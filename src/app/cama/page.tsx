@@ -351,6 +351,17 @@ export default function CamaPage() {
                       <div className="text-2xl font-mono mt-1">{last.ordenDell ?? '-'}</div>
                     </div>
                   </div>
+                  {last.palletTotal != null && last.palletMaxPos != null && (
+                    <div className="rounded-xl bg-yellow-300 text-black p-4 border-4 border-yellow-500">
+                      <div className="text-lg font-black">
+                        📦 Este pallet trae <span className="text-2xl">{last.palletTotal}</span> piezas
+                        {last.producto && /monitor/i.test(last.producto) ? ' (monitores)' : last.producto && /slim|qcs|desktop/i.test(last.producto) ? ' (CPUs)' : ''}
+                      </div>
+                      <div className="text-base font-bold mt-1">
+                        La posición MÁS ALTA es la <span className="text-2xl font-black">#{last.palletMaxPos}</span> — empieza a armar el pallet con ESA como primera caja.
+                      </div>
+                    </div>
+                  )}
                   <div className="rounded bg-black/30 p-3 text-sm">
                     <b>Serie:</b> <span className="font-mono">{last.assetTag}</span> · <b>Producto:</b> {last.producto ?? '-'} · <b>Partida:</b> {last.partida ?? '-'}
                   </div>

@@ -28,6 +28,24 @@ async function doLookup(scanRaw: string, operator: string) {
     });
   }
 
+  // Info del PALLET al que pertenece esta caja: total de piezas y posición más
+  // alta, para el mismo producto (monitores y CPUs se cuentan por separado).
+  // Sirve para avisar al operador cuántas piezas trae ese pallet (unos son de
+  // 72, otros de 50, etc.) y con qué número EMPEZAR a armar (la más alta abajo).
+  let palletTotal: number | null = null;
+  let palletMaxPos: number | null = null;
+  if (u.pallet != null) {
+    const hermanos = await prisma.ubicacion.findMany({
+      where: { partida: u.partida, pallet: u.pallet, producto: u.producto },
+      select: { position: true },
+    });
+    palletTotal = hermanos.length;
+    const nums = hermanos
+      .map((h) => parseInt(String(h.position ?? '').replace(/[^0-9]/g, ''), 10))
+      .filter((n) => !isNaN(n));
+    palletMaxPos = nums.length ? Math.max(...nums) : null;
+  }
+
   return {
     ok: true,
     assetTag: u.assetTag,
@@ -40,6 +58,8 @@ async function doLookup(scanRaw: string, operator: string) {
     producto: u.producto,
     partida: u.partida,
     scannedAt: u.scannedAt,
+    palletTotal,
+    palletMaxPos,
   };
 }
 
