@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ScanInput, beepOK, siren, useOperator } from '@/components/ScanInput';
-import PalletDiagram from '@/components/PalletDiagram';
 
 type Item = { id: number; assetTag: string; inventario: string; cama: string | null; position: string | null; pallet: string | null; partida: string | null };
 type OrderList = { order: string; total: number; items: Item[] };
@@ -359,9 +358,6 @@ export default function CamaPage() {
                     <div className="rounded bg-emerald-500 text-black p-3 font-bold">
                       ➡️ SIGUIENTE: <span className="font-mono">{nextItem.assetTag}</span> (Pallet {nextItem.pallet} · Cama {nextItem.cama} · Pos {nextItem.position})
                     </div>
-                  )}
-                  {last.producto && /monitor/i.test(last.producto) && last.position && !isNaN(Number(last.position)) && (
-                    <PalletDiagram position={Number(last.position)} />
                   )}
                 </div>
               ) : (
