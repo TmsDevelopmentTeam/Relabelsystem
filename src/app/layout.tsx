@@ -21,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/paso4" className="hover:text-white text-slate-300">③ Match</Link>
           <span className="text-slate-600">·</span>
           <Link href="/dashboard" className="hover:text-white text-slate-300">Dashboard</Link>
+          <Link href="/monitor" className="hover:text-white text-slate-300">👁️ Monitor</Link>
           <Link href="/import" className="hover:text-white text-slate-300">Import</Link>
         </nav>
         <main className="p-4 sm:p-6">{children}</main>
