@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 const esLaptop = (p: string | null) => /pro 14|pc14250|laptop/i.test(String(p ?? ''));
 // Clave de rollo por pallet: "PARTIDA · P#". paso2 arma la misma cadena para
 // resolver el rollo del equipo escaneado.
-export const palletKey = (partida: string, pallet: string) => `${partida} · P${pallet}`;
+const palletKey = (partida: string, pallet: string) => `${partida} · P${pallet}`;
 
 const numOr = (v: string | null) => {
   const n = parseInt(String(v ?? '').replace(/[^0-9]/g, ''), 10);
