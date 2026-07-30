@@ -9,7 +9,7 @@ export async function GET() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const [camaRecent, matchRecent, camaArmadas, camaTotal, camaHoy, matchHoy, matchedTotal, eqTotal] = await Promise.all([
+  const [camaRecent, matchRecent, rollsRecent, rollsTotal, rollsHoy, camaArmadas, camaTotal, camaHoy, matchHoy, matchedTotal, eqTotal] = await Promise.all([
     prisma.ubicacion.findMany({
       where: { scannedAt: { not: null } },
       orderBy: { scannedAt: 'desc' },
@@ -22,6 +22,13 @@ export async function GET() {
       take: 30,
       select: { assetTag: true, inventario: true, boxLabel: true, operator: true, result: true, message: true, createdAt: true },
     }),
+    prisma.labelRoll.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+      select: { orderNumber: true, value: true, position: true, operator: true, createdAt: true },
+    }),
+    prisma.labelRoll.count(),
+    prisma.labelRoll.count({ where: { createdAt: { gte: startOfToday } } }),
     prisma.ubicacion.count({ where: { scannedAt: { not: null } } }),
     prisma.ubicacion.count(),
     prisma.ubicacion.count({ where: { scannedAt: { gte: startOfToday } } }),
@@ -33,7 +40,8 @@ export async function GET() {
   return NextResponse.json({
     camaRecent,
     matchRecent,
-    counts: { camaArmadas, camaTotal, camaHoy, matchHoy, matchedTotal, eqTotal },
+    rollsRecent,
+    counts: { camaArmadas, camaTotal, camaHoy, matchHoy, matchedTotal, eqTotal, rollsTotal, rollsHoy },
     nowISO: new Date().toISOString(),
   });
 }

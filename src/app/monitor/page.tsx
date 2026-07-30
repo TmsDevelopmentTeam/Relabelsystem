@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 
 type Cama = { assetTag: string; inventario: string; producto: string | null; partida: string | null; pallet: string | null; cama: string | null; position: string | null; scannedAt: string; scannedBy: string | null; ordenDell: string | null };
 type Match = { assetTag: string | null; inventario: string | null; boxLabel: string | null; operator: string | null; result: string; message: string | null; createdAt: string };
-type Data = { camaRecent: Cama[]; matchRecent: Match[]; counts: { camaArmadas: number; camaTotal: number; camaHoy: number; matchHoy: number; matchedTotal: number; eqTotal: number }; nowISO: string };
+type Roll = { orderNumber: string | null; value: string; position: number | null; operator: string | null; createdAt: string };
+type Data = { camaRecent: Cama[]; matchRecent: Match[]; rollsRecent: Roll[]; counts: { camaArmadas: number; camaTotal: number; camaHoy: number; matchHoy: number; matchedTotal: number; eqTotal: number; rollsTotal: number; rollsHoy: number }; nowISO: string };
 
 function hora(iso: string) {
   const d = new Date(iso);
@@ -51,7 +52,7 @@ export default function MonitorPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="rounded-lg bg-orange-800/50 p-4 text-white">
           <div className="text-xs opacity-80 uppercase">🛏️ Cama · armadas</div>
           <div className="text-3xl font-black mt-1">{c ? c.camaArmadas : '—'}<span className="text-lg opacity-60"> / {c?.camaTotal ?? '—'}</span></div>
@@ -72,9 +73,42 @@ export default function MonitorPage() {
           <div className="text-3xl font-black mt-1">{c ? c.matchHoy : '—'}</div>
           <div className="text-[11px] opacity-70">eventos de match hoy</div>
         </div>
+        <div className="rounded-lg bg-cyan-800/50 p-4 text-white">
+          <div className="text-xs opacity-80 uppercase">🎞️ Rollos · total</div>
+          <div className="text-3xl font-black mt-1">{c ? c.rollsTotal : '—'}</div>
+          <div className="text-[11px] opacity-70">etiquetas cargadas</div>
+        </div>
+        <div className="rounded-lg bg-cyan-700/50 p-4 text-white">
+          <div className="text-xs opacity-80 uppercase">🎞️ Rollos · hoy</div>
+          <div className="text-3xl font-black mt-1">{c ? c.rollsHoy : '—'}</div>
+          <div className="text-[11px] opacity-70">escaneadas hoy</div>
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* ROLLOS feed */}
+        <div className="rounded-lg border border-cyan-700/50 bg-slate-900">
+          <div className="px-4 py-2 border-b border-slate-700 font-bold text-cyan-300">🎞️ Rollos — últimas etiquetas escaneadas</div>
+          <div className="max-h-[60vh] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="text-slate-400 text-xs sticky top-0 bg-slate-900">
+                <tr><th className="text-left px-3 py-1">Hora</th><th className="text-left px-3 py-1">Etiqueta</th><th className="text-left px-3 py-1">Partida/Pallet</th><th className="text-left px-3 py-1">Op</th></tr>
+              </thead>
+              <tbody>
+                {d?.rollsRecent.map((r, i) => (
+                  <tr key={i} className={`border-t border-slate-800 ${i === 0 ? 'bg-cyan-500/10' : ''}`}>
+                    <td className="px-3 py-1 text-slate-400 whitespace-nowrap" title={r.createdAt}>{hace(r.createdAt, now)}</td>
+                    <td className="px-3 py-1 font-mono text-white">{r.value}<div className="text-[10px] text-slate-500">#{r.position}</div></td>
+                    <td className="px-3 py-1 text-cyan-200 font-mono text-xs">{r.orderNumber}</td>
+                    <td className="px-3 py-1 text-slate-300">{r.operator || '—'}</td>
+                  </tr>
+                ))}
+                {d && d.rollsRecent.length === 0 && <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-500">Sin rollos aún</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* CAMA feed */}
         <div className="rounded-lg border border-orange-700/50 bg-slate-900">
           <div className="px-4 py-2 border-b border-slate-700 font-bold text-orange-300">🛏️ Cama — últimas ubicaciones escaneadas</div>
