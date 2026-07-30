@@ -42,14 +42,33 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ESTRICTO: solo rollo de la MISMA orden del equipo. Sin fallback a otras órdenes.
+    // Rollo del equipo: primero por ORDEN; si no, por PALLET ("PARTIDA · P#")
+    // y luego por PARTIDA (los rollos nuevos van por tarima+pallet).
     const equipoOrder = eq.ordenDell ?? eq.po ?? null;
-    const rollEntry = equipoOrder
+    let rollEntry = equipoOrder
       ? await prisma.labelRoll.findFirst({
           where: { value: eq.inventario, orderNumber: equipoOrder },
           orderBy: { position: 'asc' },
         })
       : null;
+    if (!rollEntry) {
+      const ubiPP = await prisma.ubicacion.findFirst({
+        where: { OR: [{ assetTag: eq.assetTag }, { inventario: eq.inventario }] },
+        select: { partida: true, pallet: true },
+      });
+      if (ubiPP?.partida) {
+        const claves: string[] = [];
+        if (ubiPP.pallet != null) claves.push(`${ubiPP.partida} · P${ubiPP.pallet}`);
+        claves.push(ubiPP.partida);
+        for (const k of claves) {
+          rollEntry = await prisma.labelRoll.findFirst({
+            where: { value: eq.inventario, orderNumber: k },
+            orderBy: { position: 'asc' },
+          });
+          if (rollEntry) break;
+        }
+      }
+    }
     const rollPosition = rollEntry?.position ?? null;
     const rollOrder = rollEntry?.orderNumber ?? null;
     const rollMissingForOrder = !rollEntry && equipoOrder != null;
