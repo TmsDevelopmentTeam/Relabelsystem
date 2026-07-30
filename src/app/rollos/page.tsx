@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ScanInput, beepOK, siren, useOperator } from '@/components/ScanInput';
 
 type Entry = { id: number; orderNumber: string | null; position: number | null; value: string; status: string; operator: string | null; createdAt: string };
-type OrderInfo = { order: string; equipmentCount: number; laptopCount: number; otherCount: number; expectedLabels: number; scannedInRoll: number; remaining: number; completedPct: number; complete: boolean; scannedEquipos?: number; remainingEquipos?: number; completedPctEquipos?: number };
+type OrderInfo = { order?: string; modo?: string; partida?: string; pallets?: { pallet: string; count: number }[]; equipmentCount: number; laptopCount?: number; otherCount?: number; expectedLabels?: number; scannedInRoll?: number; remaining?: number; completedPct?: number; complete?: boolean; scannedEquipos?: number; remainingEquipos?: number; completedPctEquipos?: number };
 
 export default function RollosPage() {
   const op = useOperator();
@@ -161,12 +161,28 @@ export default function RollosPage() {
           )}
         </div>
 
-        {orderInfo && orderInfo.equipmentCount > 0 && (
+        {/* Selección de PALLET cuando se eligió una partida (rollos por pallet) */}
+        {orderInfo && orderInfo.modo === 'partida-lista' && orderInfo.pallets && (
+          <div className="mt-3 rounded bg-black/40 p-3">
+            <div className="text-sm text-white mb-2">Partida <b className="font-mono">{orderInfo.partida}</b> · elige el <b className="text-cyan-300">PALLET</b> a escanear:</div>
+            <div className="flex flex-wrap gap-2">
+              {orderInfo.pallets.map((p) => (
+                <button key={p.pallet} onClick={() => saveOrder(`${orderInfo.partida} · P${p.pallet}`)}
+                  className="rounded px-3 py-2 text-sm font-bold border bg-slate-800 border-slate-600 text-slate-100 hover:bg-cyan-700 hover:border-cyan-400">
+                  Pallet {p.pallet} <span className="text-slate-400 font-normal">· {p.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {orderInfo && orderInfo.modo !== 'partida-lista' && (orderInfo.equipmentCount ?? 0) > 0 && (
           <div className="mt-3 rounded bg-black/40 p-3">
             <div className="flex justify-between items-center flex-wrap gap-2 text-sm">
               <div className="text-white">
-                <b>{orderInfo.equipmentCount}</b> equipos ({orderInfo.laptopCount} laptop, {orderInfo.otherCount} otros)
-                {orderInfo.laptopCount > 0 && (
+                {orderInfo.modo === 'pallet' && <span className="text-cyan-300 font-bold">📦 {orderInfo.order} · </span>}
+                <b>{orderInfo.equipmentCount}</b> equipos ({orderInfo.laptopCount ?? 0} laptop, {orderInfo.otherCount ?? 0} otros)
+                {(orderInfo.laptopCount ?? 0) > 0 && (
                   <span className="text-slate-400"> · 2 etiquetas por laptop</span>
                 )}
               </div>
@@ -205,8 +221,8 @@ export default function RollosPage() {
         </div>
       </div>
 
-      {/* Start/Stop Scan */}
-      {orderNumber && (
+      {/* Start/Stop Scan (oculto mientras solo hay partida sin pallet elegido) */}
+      {orderNumber && orderInfo?.modo !== 'partida-lista' && (
         <div className="flex gap-2">
           {!scanning ? (
             <button onClick={() => setScanning(true)}

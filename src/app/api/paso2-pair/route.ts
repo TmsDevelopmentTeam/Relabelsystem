@@ -63,18 +63,25 @@ export async function POST(req: NextRequest) {
         orderBy: { position: 'asc' },
       });
     }
-    // NUEVO: rollos POR PARTIDA. Si no hay rollo por orden, buscar por la PARTIDA
-    // del equipo (viene de Cama/Ubicacion). Los rollos ahora llegan por partida.
+    // NUEVO: rollos POR PALLET / PARTIDA. Si no hay rollo por orden, buscar por
+    // el PALLET del equipo (clave "PARTIDA · P#") y, si no, por la PARTIDA sola.
+    // Los rollos nuevos llegan por tarima+pallet (viene de Cama/Ubicacion).
     if (!rollEntry) {
-      const ubiPart = await prisma.ubicacion.findFirst({
+      const ubiPP = await prisma.ubicacion.findFirst({
         where: { OR: [{ assetTag: target.assetTag }, { inventario: inventarioResolved }] },
-        select: { partida: true },
+        select: { partida: true, pallet: true },
       });
-      if (ubiPart?.partida) {
-        rollEntry = await prisma.labelRoll.findFirst({
-          where: { value: inventarioResolved, orderNumber: ubiPart.partida },
-          orderBy: { position: 'asc' },
-        });
+      if (ubiPP?.partida) {
+        const claves = [] as string[];
+        if (ubiPP.pallet != null) claves.push(`${ubiPP.partida} · P${ubiPP.pallet}`);
+        claves.push(ubiPP.partida);
+        for (const k of claves) {
+          rollEntry = await prisma.labelRoll.findFirst({
+            where: { value: inventarioResolved, orderNumber: k },
+            orderBy: { position: 'asc' },
+          });
+          if (rollEntry) break;
+        }
       }
     }
     if (!rollEntry && isInventario) {

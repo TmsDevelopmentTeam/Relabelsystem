@@ -13,16 +13,56 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const value = norm(body?.value);
     const operator = String(body?.operator ?? 'unknown');
-    const orderNumber = String(body?.orderNumber ?? '').trim() || null;
     const force = !!body?.force;
+    // Modo PALLET (rollos nuevos por tarima+pallet): body.partida + body.pallet,
+    // o un orderNumber compuesto "PARTIDA · P#".
+    let partidaSel = String(body?.partida ?? '').trim() || null;
+    let palletSel = String(body?.pallet ?? '').trim() || null;
+    const rawOrder = String(body?.orderNumber ?? '').trim() || null;
+    if (!(partidaSel && palletSel) && rawOrder) {
+      const m = rawOrder.match(/^(.+) · P(.+)$/);
+      if (m) { partidaSel = m[1]; palletSel = m[2]; }
+    }
+    const palletMode = !!(partidaSel && palletSel);
+    const orderNumber = palletMode ? `${partidaSel} · P${palletSel}` : rawOrder;
     if (!value) return NextResponse.json({ ok: false, message: 'Vacío' }, { status: 400 });
-    if (!orderNumber) return NextResponse.json({ ok: false, message: 'Falta número de orden' }, { status: 400 });
+    if (!orderNumber) return NextResponse.json({ ok: false, message: 'Falta orden o partida+pallet' }, { status: 400 });
+
+    // --- Validación en modo PALLET: la etiqueta debe estar en ese pallet de esa partida ---
+    if (palletMode && !force) {
+      const enPallet = await prisma.ubicacion.findFirst({
+        where: { inventario: value, partida: partidaSel!, pallet: palletSel! },
+        select: { id: true },
+      });
+      if (!enPallet) {
+        const uOther = await prisma.ubicacion.findFirst({
+          where: { inventario: value },
+          select: { partida: true, pallet: true, assetTag: true, producto: true },
+        });
+        if (!uOther) {
+          return NextResponse.json({ ok: false, reason: 'NOT_IN_CATALOG', message: `La etiqueta ${value} no existe en Camas.`, scanned: value });
+        }
+        return NextResponse.json({
+          ok: false, reason: 'WRONG_ORDER',
+          message: `Esta etiqueta NO va en ${orderNumber}. Va en ${uOther.partida} · P${uOther.pallet}.`,
+          scanned: value, expectedOrder: `${uOther.partida} · P${uOther.pallet}`, currentOrder: orderNumber,
+          equipment: { assetTag: uOther.assetTag, producto: uOther.producto },
+        });
+      }
+      // dedup: 1 etiqueta por CPU (2 si laptop) en este pallet
+      const u = await prisma.ubicacion.findFirst({ where: { inventario: value, partida: partidaSel!, pallet: palletSel! }, select: { producto: true } });
+      const expected = /pro 14|pc14250|laptop/i.test(String(u?.producto ?? '')) ? 2 : 1;
+      const already = await prisma.labelRoll.count({ where: { value, orderNumber } });
+      if (already >= expected) {
+        return NextResponse.json({ ok: false, reason: 'ALREADY_SCANNED', message: `La etiqueta ${value} ya se escaneó ${already} vez(es) en ${orderNumber} (máx: ${expected}).`, scanned: value, alreadyCount: already, expectedCount: expected });
+      }
+    }
 
     // Validación: la etiqueta debe pertenecer a ESTA orden según el Excel.
     // Ojo: una misma etiqueta puede aparecer en múltiples órdenes (Monitor + CPU
     // comparten el activo pero pueden ser de ordenes Dell distintas). Se acepta
     // si existe AL MENOS UN equipo en la orden actual con este inventario.
-    if (!force) {
+    if (!force && !palletMode) {
       const eqInThisOrder = await prisma.equipment.findFirst({
         where: {
           inventario: value,
@@ -68,7 +108,7 @@ export async function POST(req: NextRequest) {
     //   - LAPTOP: 2 etiquetas
     //   - MONITOR/DESKTOP/OTHER: 1 etiqueta
     // Si Monitor+CPU comparten activo en la misma orden, el esperado suma ambos.
-    if (!force) {
+    if (!force && !palletMode) {
       const equipos = await prisma.equipment.findMany({
         where: {
           inventario: value,
@@ -125,7 +165,10 @@ export async function POST(req: NextRequest) {
       select: { assetTag: true, producto: true, equipmentType: true },
     });
     if (!eqInOrder) {
-      const u = await prisma.ubicacion.findFirst({ where: { inventario: value, partida: orderNumber }, select: { assetTag: true, producto: true } });
+      const whereU = palletMode
+        ? { inventario: value, partida: partidaSel!, pallet: palletSel! }
+        : { inventario: value, partida: orderNumber };
+      const u = await prisma.ubicacion.findFirst({ where: whereU, select: { assetTag: true, producto: true } });
       if (u) eqInOrder = { assetTag: u.assetTag, producto: u.producto, equipmentType: /pro 14|pc14250|laptop/i.test(String(u.producto ?? '')) ? 'LAPTOP' : null };
     }
 
