@@ -28,6 +28,12 @@ export async function GET(req: NextRequest) {
     const m = order.match(/^(.+) · P(.+)$/);
     if (m) { partida = m[1]; pallet = m[2]; }
   }
+  // Si 'order' es en realidad una PARTIDA (existe en Cama), tratarlo como tal
+  // para listar sus pallets (los rollos van por partida/pallet).
+  if (order && !partida) {
+    const esPartida = await prisma.ubicacion.count({ where: { partida: order } });
+    if (esPartida > 0) partida = order;
+  }
 
   // --- Modo PALLET (partida + pallet) ---
   if (partida && pallet) {
