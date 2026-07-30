@@ -20,13 +20,12 @@ async function doLookup(scanRaw: string, operator: string) {
   }
   if (!u) return { ok: false, reason: 'NOT_FOUND', message: `${scan} no encontrado en el catálogo de ubicaciones.` };
 
-  // Persistir el scan (si no estaba ya escaneado)
-  if (!u.scannedAt) {
-    u = await prisma.ubicacion.update({
-      where: { id: u.id },
-      data: { scannedAt: new Date(), scannedBy: operator || null },
-    });
-  }
+  // Persistir el scan SIEMPRE (refresca hora y operador en cada escaneo),
+  // para que el re-escaneo (ej. reacomodo de laptops) se vea en el Monitor.
+  u = await prisma.ubicacion.update({
+    where: { id: u.id },
+    data: { scannedAt: new Date(), scannedBy: operator || null },
+  });
 
   // Info del PALLET al que pertenece esta caja: total de piezas y posición más
   // alta, para el mismo producto (monitores y CPUs se cuentan por separado).
