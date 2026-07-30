@@ -137,12 +137,12 @@ export default function RollosPage() {
 
       {/* Selector de orden */}
       <div className="rounded-lg bg-slate-900 border-2 border-cyan-500 p-4">
-        <label className="block text-sm text-slate-300 mb-2">Orden actual (Orden Dell o PO)</label>
+        <label className="block text-sm text-slate-300 mb-2">Orden o <b className="text-cyan-300">Partida</b> (los rollos ahora van por partida: ej. <span className="font-mono">1520 D</span>)</label>
         <div className="flex gap-2 flex-wrap">
           <input
             value={orderNumber}
             onChange={(e) => saveOrder(e.target.value.trim())}
-            placeholder="Ej. 1031565130"
+            placeholder="Ej. 1520 D  ·  ó una orden 1031565130"
             className="flex-1 rounded bg-slate-950 border border-slate-700 px-3 py-2 text-xl font-mono text-white"
           />
           {ordersSummary && ordersSummary.orders.length > 0 && (
@@ -187,9 +187,22 @@ export default function RollosPage() {
 
         {orderInfo && orderInfo.equipmentCount === 0 && orderNumber && (
           <div className="mt-3 rounded bg-yellow-500 text-black p-3 text-sm">
-            ⚠️ La orden <b>{orderNumber}</b> no existe en el Excel importado. Verifica el número.
+            ⚠️ <b>{orderNumber}</b> no existe ni como orden ni como partida. Verifica.
           </div>
         )}
+
+        {/* Partidas de desktop (rollos por partida) */}
+        <div className="mt-3">
+          <div className="text-xs text-slate-400 mb-1">Partidas de Desktop (toca para elegir):</div>
+          <div className="flex flex-wrap gap-1.5">
+            {['1520 D', '1540 D', '1550 D', '1560 D', 'Cedros 03 D', 'Cedros 05 D', 'Cedros 07 D', 'Respando D'].map((p) => (
+              <button key={p} onClick={() => saveOrder(p)}
+                className={`rounded px-2.5 py-1 text-xs font-mono border ${orderNumber === p ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'}`}>
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Start/Stop Scan */}

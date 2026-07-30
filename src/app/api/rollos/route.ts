@@ -30,7 +30,13 @@ export async function POST(req: NextRequest) {
         },
         select: { assetTag: true, producto: true, equipmentType: true },
       });
-      if (!eqInThisOrder) {
+      // NUEVO: si no matchea como orden, aceptar si la etiqueta pertenece a la
+      // PARTIDA indicada (rollos por partida, ej. orderNumber = "1520 D").
+      const enEstaPartida = eqInThisOrder ? true : !!(await prisma.ubicacion.findFirst({
+        where: { inventario: value, partida: orderNumber },
+        select: { id: true },
+      }));
+      if (!eqInThisOrder && !enEstaPartida) {
         // No existe en la orden actual → ¿existe en otra?
         const eqOther = await prisma.equipment.findFirst({
           where: { inventario: value },
@@ -70,9 +76,16 @@ export async function POST(req: NextRequest) {
         },
         select: { equipmentType: true },
       });
-      const laptops = equipos.filter((e) => e.equipmentType === 'LAPTOP').length;
-      const otros = equipos.length - laptops;
-      const expected = laptops * 2 + otros * 1;
+      let expected: number;
+      if (equipos.length > 0) {
+        const laptops = equipos.filter((e) => e.equipmentType === 'LAPTOP').length;
+        const otros = equipos.length - laptops;
+        expected = laptops * 2 + otros * 1;
+      } else {
+        // modo partida: 1 etiqueta por equipo (2 si es laptop)
+        const u = await prisma.ubicacion.findFirst({ where: { inventario: value, partida: orderNumber }, select: { producto: true } });
+        expected = u ? (/pro 14|pc14250|laptop/i.test(String(u.producto ?? '')) ? 2 : 1) : 0;
+      }
 
       const already = await prisma.labelRoll.count({
         where: { value, orderNumber },
@@ -102,14 +115,19 @@ export async function POST(req: NextRequest) {
       data: { value, operator, orderNumber, position: nextPosition },
     });
 
-    // Info del equipo asociado en ESTA orden (para confirmar visualmente al operador)
-    const eqInOrder = await prisma.equipment.findFirst({
+    // Info del equipo asociado (para confirmar visualmente al operador).
+    // Primero por orden; si no, por partida (Ubicacion).
+    let eqInOrder: any = await prisma.equipment.findFirst({
       where: {
         inventario: value,
         OR: [{ ordenDell: orderNumber }, { po: orderNumber }],
       },
       select: { assetTag: true, producto: true, equipmentType: true },
     });
+    if (!eqInOrder) {
+      const u = await prisma.ubicacion.findFirst({ where: { inventario: value, partida: orderNumber }, select: { assetTag: true, producto: true } });
+      if (u) eqInOrder = { assetTag: u.assetTag, producto: u.producto, equipmentType: /pro 14|pc14250|laptop/i.test(String(u.producto ?? '')) ? 'LAPTOP' : null };
+    }
 
     // El operador cuenta EQUIPOS, no etiquetas: una laptop lleva 2 etiquetas
     // repetidas (mismo inventario), así que las positions crudas llegan a 96

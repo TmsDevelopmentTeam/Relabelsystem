@@ -22,9 +22,26 @@ export async function GET(req: NextRequest) {
     select: { id: true, assetTag: true, inventario: true, equipmentType: true },
   });
 
-  const equipmentCount = equipos.length;
-  const laptopCount = equipos.filter((e) => e.equipmentType === 'LAPTOP').length;
-  const otherCount = equipmentCount - laptopCount;
+  // Si el valor no es una orden, se intenta como PARTIDA (Ubicacion.partida).
+  // Los rollos ahora llegan por partida (ej. "1520 D"): se cuenta desde Cama.
+  const esLaptop = (p: string | null) => /pro 14|pc14250|laptop/i.test(String(p ?? ''));
+  let modo = 'orden';
+  let equipmentCount: number, laptopCount: number, otherCount: number;
+  if (equipos.length > 0) {
+    equipmentCount = equipos.length;
+    laptopCount = equipos.filter((e) => e.equipmentType === 'LAPTOP').length;
+    otherCount = equipmentCount - laptopCount;
+  } else {
+    const ubis = await prisma.ubicacion.findMany({ where: { partida: order }, select: { producto: true } });
+    if (ubis.length > 0) {
+      modo = 'partida';
+      equipmentCount = ubis.length;
+      laptopCount = ubis.filter((u) => esLaptop(u.producto)).length;
+      otherCount = equipmentCount - laptopCount;
+    } else {
+      equipmentCount = 0; laptopCount = 0; otherCount = 0;
+    }
+  }
   const expectedLabels = laptopCount * 2 + otherCount * 1;
 
   const rollAll = await prisma.labelRoll.findMany({
@@ -39,6 +56,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     order,
+    modo,
     equipmentCount,
     laptopCount,
     otherCount,

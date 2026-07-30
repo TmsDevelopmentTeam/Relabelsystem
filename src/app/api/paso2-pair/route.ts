@@ -63,6 +63,20 @@ export async function POST(req: NextRequest) {
         orderBy: { position: 'asc' },
       });
     }
+    // NUEVO: rollos POR PARTIDA. Si no hay rollo por orden, buscar por la PARTIDA
+    // del equipo (viene de Cama/Ubicacion). Los rollos ahora llegan por partida.
+    if (!rollEntry) {
+      const ubiPart = await prisma.ubicacion.findFirst({
+        where: { OR: [{ assetTag: target.assetTag }, { inventario: inventarioResolved }] },
+        select: { partida: true },
+      });
+      if (ubiPart?.partida) {
+        rollEntry = await prisma.labelRoll.findFirst({
+          where: { value: inventarioResolved, orderNumber: ubiPart.partida },
+          orderBy: { position: 'asc' },
+        });
+      }
+    }
     if (!rollEntry && isInventario) {
       // Escaneó inventario sin orden clara → fallback permitido
       rollEntry =
