@@ -16,6 +16,7 @@ export default function RollosPage() {
   const [busy, setBusy] = useState(false);
   const [data, setData] = useState<{ order: string; items: Entry[]; count: number; available: number; consumed: number } | null>(null);
   const [ordersSummary, setOrdersSummary] = useState<{ orders: { orderNumber: string | null; count: number }[]; overall: number } | null>(null);
+  const [partSummary, setPartSummary] = useState<{ partidas: { partida: string; totalEquipos: number; escaneados: number; pallets: { pallet: string; equipos: number; escaneados: number; completo: boolean }[] }[] } | null>(null);
   const [lastId, setLastId] = useState<number | null>(null);
   const [wrongOrder, setWrongOrder] = useState<{ scanned: string; expectedOrder: string; equipment: any } | null>(null);
   const [lastConfirm, setLastConfirm] = useState<{ position: number; value: string; equipment: any; equipoNum?: number | null; totalEquiposEnRollo?: number; etiquetasDeEsteEquipo?: number } | null>(null);
@@ -50,6 +51,10 @@ export default function RollosPage() {
   async function loadSummary() {
     const res = await fetch('/api/rollos?stats=1', { cache: 'no-store' });
     setOrdersSummary(await res.json());
+    try {
+      const rp = await fetch('/api/rollos/partida-summary', { cache: 'no-store' });
+      setPartSummary(await rp.json());
+    } catch {}
   }
 
   async function submit(force = false) {
@@ -313,6 +318,35 @@ export default function RollosPage() {
               className="rounded bg-slate-700 hover:bg-slate-600 px-4 py-2 text-white">
               Cancelar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Resumen por PARTIDA (rollos por pallet) */}
+      {partSummary && partSummary.partidas.length > 0 && (
+        <div className="rounded-lg border border-cyan-700 bg-slate-900 p-4">
+          <div className="text-sm text-cyan-300 font-bold mb-3">📦 Resumen de rollos por PARTIDA / PALLET</div>
+          <div className="space-y-3">
+            {partSummary.partidas.map((p) => (
+              <div key={p.partida} className="rounded bg-black/40 p-3">
+                <div className="flex justify-between items-center flex-wrap gap-2 mb-2">
+                  <div className="font-mono font-bold text-white">{p.partida}</div>
+                  <div className={`font-mono text-sm ${p.escaneados >= p.totalEquipos ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {p.escaneados} / {p.totalEquipos} equipos
+                    {p.escaneados >= p.totalEquipos && ' ✅'}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {p.pallets.map((pl) => (
+                    <div key={pl.pallet}
+                      className={`rounded px-2 py-1 text-xs font-mono border ${pl.completo ? 'bg-emerald-800/60 border-emerald-500 text-emerald-100' : pl.escaneados > 0 ? 'bg-amber-800/50 border-amber-500 text-amber-100' : 'bg-slate-800 border-slate-600 text-slate-400'}`}
+                      title={`Pallet ${pl.pallet}`}>
+                      P{pl.pallet}: <b>{pl.escaneados}</b>/{pl.equipos}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
