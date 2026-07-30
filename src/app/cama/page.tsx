@@ -326,6 +326,11 @@ export default function CamaPage() {
             <div className={`rounded-lg p-6 ${last.ok ? 'bg-orange-600' : 'bg-red-700'} text-white`}>
               {last.ok ? (
                 <div className="space-y-4">
+                  {/* PARTIDA grande y visible (como en la pestaña del Excel) */}
+                  <div className="rounded-2xl bg-cyan-500 text-black p-4 text-center border-4 border-white shadow-2xl">
+                    <div className="text-base uppercase font-bold opacity-80">📋 PARTIDA</div>
+                    <div className="text-6xl font-black mt-1 leading-none tracking-wide">{last.partida ?? '—'}</div>
+                  </div>
                   {/* Tarjetas GIGANTES: Pallet → Cama → Position */}
                   <div className="grid grid-cols-3 gap-4">
                     <div className="rounded-2xl bg-black/40 p-6 border-4 border-white text-center shadow-2xl">
