@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { prisma } from '@/lib/prisma';
+import { mxDateTime, mxWeekday, startOfTodayMx } from '@/lib/time';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Excel de los equipos que hicieron MATCH hoy (eventos step=MATCH result=OK).
+// Excel de los eventos de MATCH de HOY (día de México), en hora de México.
 export async function GET() {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+  const startOfToday = startOfTodayMx();
 
-  // TODOS los eventos de MATCH de hoy (igual que el KPI del dashboard), sin dedup.
+  // TODOS los eventos de MATCH de hoy (día México), sin dedup.
   const uniq = await prisma.scanEvent.findMany({
     where: { step: 'MATCH', createdAt: { gte: startOfToday } },
     orderBy: { createdAt: 'asc' },
@@ -30,7 +30,8 @@ export async function GET() {
     const u = e.assetTag ? uMap.get(e.assetTag) : undefined;
     return {
       '#': i + 1,
-      'Hora Match': e.createdAt.toISOString().slice(0, 19).replace('T', ' '),
+      'Día': mxWeekday(e.createdAt),
+      'Fecha/Hora (México)': mxDateTime(e.createdAt),
       Resultado: e.result ?? '',
       'Serie (SN)': e.assetTag ?? '',
       Inventario: e.inventario ?? eq?.inventario ?? '',
@@ -48,7 +49,7 @@ export async function GET() {
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 11 }, { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 16 }, { wch: 40 }];
+  ws['!cols'] = [{ wch: 5 }, { wch: 10 }, { wch: 20 }, { wch: 11 }, { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 16 }, { wch: 40 }];
   if (ws['!ref']) ws['!autofilter'] = { ref: ws['!ref'] };
   XLSX.utils.book_append_sheet(wb, ws, 'Match Hoy');
 

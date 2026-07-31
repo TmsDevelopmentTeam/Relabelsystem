@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { prisma } from '@/lib/prisma';
+import { mxDateTime } from '@/lib/time';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -157,7 +158,7 @@ export async function GET(req: NextRequest) {
     Producto: u.producto ?? '',
     Descripción: u.descripcion ?? '',
     Escaneado: u.scannedAt ? 'SI' : 'NO',
-    'Escaneado At': u.scannedAt ? u.scannedAt.toISOString().slice(0, 19).replace('T', ' ') : '',
+    'Escaneado At': mxDateTime(u.scannedAt),
     'Escaneado Por': u.scannedBy ?? '',
   }));
   const wsDetalle = XLSX.utils.json_to_sheet(detalle);

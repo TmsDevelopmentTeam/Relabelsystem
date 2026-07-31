@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { prisma } from '@/lib/prisma';
+import { mxDateTime } from '@/lib/time';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,10 +16,10 @@ export async function GET() {
     'Asset Tag (SN)': e.assetTag, Región: e.region, Inventario: e.inventario, Solicitante: e.solicitante,
     'Tipo Etiqueta': e.tipoEtiqueta, 'Tipo Equipo': e.equipmentType,
     Status: e.status, 'Board Cell': e.boardCell,
-    'Tagged At': e.taggedAt?.toISOString() ?? '', 'Tagged By': e.taggedBy,
-    'Paired At': e.pairedAt?.toISOString() ?? '', 'Paired By': e.pairedBy,
-    'Labeled At': e.labeledAt?.toISOString() ?? '', 'Labeled By': e.labeledBy,
-    'Matched At': e.matchedAt?.toISOString() ?? '', 'Matched By': e.matchedBy,
+    'Tagged At': mxDateTime(e.taggedAt), 'Tagged By': e.taggedBy,
+    'Paired At': mxDateTime(e.pairedAt), 'Paired By': e.pairedBy,
+    'Labeled At': mxDateTime(e.labeledAt), 'Labeled By': e.labeledBy,
+    'Matched At': mxDateTime(e.matchedAt), 'Matched By': e.matchedBy,
   }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Reetiquetado');
