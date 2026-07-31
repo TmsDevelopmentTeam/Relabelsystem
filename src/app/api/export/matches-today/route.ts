@@ -10,19 +10,11 @@ export async function GET() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const events = await prisma.scanEvent.findMany({
-    where: { step: 'MATCH', result: 'OK', createdAt: { gte: startOfToday } },
+  // TODOS los eventos de MATCH de hoy (igual que el KPI del dashboard), sin dedup.
+  const uniq = await prisma.scanEvent.findMany({
+    where: { step: 'MATCH', createdAt: { gte: startOfToday } },
     orderBy: { createdAt: 'asc' },
-    select: { assetTag: true, inventario: true, operator: true, createdAt: true, equipmentId: true },
-  });
-
-  // dedup por assetTag (si se escaneó más de una vez, dejar el primero)
-  const seen = new Set<string>();
-  const uniq = events.filter((e) => {
-    const k = e.assetTag ?? String(e.equipmentId);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
+    select: { assetTag: true, inventario: true, operator: true, createdAt: true, equipmentId: true, result: true, message: true },
   });
 
   const tags = uniq.map((e) => e.assetTag).filter(Boolean) as string[];
@@ -39,6 +31,7 @@ export async function GET() {
     return {
       '#': i + 1,
       'Hora Match': e.createdAt.toISOString().slice(0, 19).replace('T', ' '),
+      Resultado: e.result ?? '',
       'Serie (SN)': e.assetTag ?? '',
       Inventario: e.inventario ?? eq?.inventario ?? '',
       Producto: eq?.producto ?? '',
@@ -49,12 +42,13 @@ export async function GET() {
       Cama: u?.cama ?? '',
       Position: u?.position ?? '',
       Operador: e.operator ?? '',
+      Mensaje: e.message ?? '',
     };
   });
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 16 }];
+  ws['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 11 }, { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 16 }, { wch: 40 }];
   if (ws['!ref']) ws['!autofilter'] = { ref: ws['!ref'] };
   XLSX.utils.book_append_sheet(wb, ws, 'Match Hoy');
 
