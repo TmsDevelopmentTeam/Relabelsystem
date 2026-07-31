@@ -266,8 +266,15 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ ok: true, deleted: id });
   }
   if (orderParam) {
+    if (!orderParam.trim()) {
+      return NextResponse.json({ error: 'order vacío: no se borra nada (protección)' }, { status: 400 });
+    }
     const res = await prisma.labelRoll.deleteMany({ where: { orderNumber: orderParam } });
     return NextResponse.json({ ok: true, deletedForOrder: orderParam, count: res.count });
+  }
+  // BLINDAJE: borrar TODO solo con confirmación explícita ?all=CONFIRMAR.
+  if (req.nextUrl.searchParams.get('all') !== 'CONFIRMAR') {
+    return NextResponse.json({ error: 'Para borrar TODOS los rollos usa ?all=CONFIRMAR. Sin eso, no se borra nada.' }, { status: 400 });
   }
   const res = await prisma.labelRoll.deleteMany();
   return NextResponse.json({ ok: true, deletedAll: res.count });

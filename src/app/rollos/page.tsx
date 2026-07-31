@@ -116,6 +116,19 @@ export default function RollosPage() {
     setLastId(null); load(); loadInfo(); loadSummary();
   }
 
+  // Reinicia SOLO este rollo (partida/pallet u orden) a 0 — con backup automático primero.
+  async function resetRoll() {
+    if (!orderNumber) return;
+    if (!confirm(`¿Reiniciar el rollo "${orderNumber}" a 0 escaneos?\n\nSolo este rollo. Se hace un respaldo automático de la base antes.`)) return;
+    try {
+      const bk = await fetch(`/api/admin/backup?motivo=reset_rollo`, { cache: 'no-store' }).then((r) => r.json());
+      if (!bk.ok) { alert('No se pudo respaldar la base. NO se reinició el rollo.\n' + (bk.error || '')); return; }
+      const res = await fetch(`/api/rollos?order=${encodeURIComponent(orderNumber)}`, { method: 'DELETE' }).then((r) => r.json());
+      alert(`✅ Rollo "${orderNumber}" reiniciado a 0 (borradas ${res.count ?? 0}).\nRespaldo: ${bk.backup}`);
+      setLastId(null); load(); loadInfo(); loadSummary();
+    } catch (e: any) { alert('Error: ' + (e?.message || e)); }
+  }
+
   async function renumberOrder() {
     if (!orderNumber || !confirm(`¿Renumerar la orden ${orderNumber} a 1..N?`)) return;
     await fetch(`/api/rollos/renumber?order=${encodeURIComponent(orderNumber)}`, { method: 'POST' });
@@ -240,6 +253,11 @@ export default function RollosPage() {
               ■ Stop Scan
             </button>
           )}
+          <button onClick={resetRoll}
+            title="Reinicia solo este rollo a 0 (hace respaldo antes)"
+            className="rounded-lg bg-amber-600 hover:bg-amber-500 px-4 py-4 text-white text-base font-black">
+            🔄 Reiniciar este rollo a 0
+          </button>
         </div>
       )}
 
