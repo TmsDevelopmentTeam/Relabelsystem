@@ -35,7 +35,15 @@ export async function POST(req: NextRequest) {
         select: { id: true },
       });
       if (!enPallet) {
-        const uOther = await prisma.ubicacion.findFirst({
+        // Monitor y CPU comparten inventario. Al cargar un rollo de CPU (partida "…D")
+        // hay que referenciar el equipo de la MISMA partida (el CPU), NO el monitor
+        // con el que comparte el número de inventario. Así el mensaje/botón apuntan
+        // al pallet correcto (ej. 1520 D · P30) en vez de al monitor (1520 M · P13).
+        const uSame = await prisma.ubicacion.findFirst({
+          where: { inventario: value, partida: partidaSel! },
+          select: { partida: true, pallet: true, assetTag: true, producto: true },
+        });
+        const uOther = uSame ?? await prisma.ubicacion.findFirst({
           where: { inventario: value },
           select: { partida: true, pallet: true, assetTag: true, producto: true },
         });
