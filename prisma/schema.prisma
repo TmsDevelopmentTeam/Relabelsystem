@@ -105,6 +105,30 @@ model LabelRoll {
   @@index([value])
 }
 
+// === PROCESO KROMA (Overpacking) ===
+// Cada fila = una CAJA MASTER que contiene una pareja CPU + monitor.
+// La orden es el USDOM (CPU y monitor tienen USDOM distintos).
+// Match = 3 escaneos: ST CPU (caja/afuera) + ST CPU (adentro) + ST monitor (adentro).
+model KromaBox {
+  id            Int      @id @default(autoincrement())
+  cajaLabel     String?  // "1 DE 48"
+  usdomCpu      String   // orden USDOM del CPU
+  stCpu         String   @unique // Service Tag del CPU (7 chars Dell)
+  usdomMonitor  String   // orden USDOM del monitor
+  stMonitor     String   @unique // Service Tag del monitor
+  createdAt     DateTime @default(now())
+
+  // Estado del match (3 escaneos)
+  status        String   @default("PENDING") // PENDING | MATCHED
+  matchedAt     DateTime?
+  matchedBy     String?
+
+  @@index([usdomCpu])
+  @@index([usdomMonitor])
+  @@index([status])
+  @@index([stMonitor])
+}
+
 // Log de eventos (auditoría)
 model ScanEvent {
   id            Int      @id @default(autoincrement())
