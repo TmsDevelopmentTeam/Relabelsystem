@@ -10,18 +10,24 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const startToday = startOfTodayMx();
 
+  // Órdenes KROMA (USDOM) para filtrar rollos de este proceso (la tabla LabelRoll
+  // aún contiene rollos viejos del proceso Telcel).
+  const allBoxes = await prisma.kromaBox.findMany({ select: { usdomCpu: true, usdomMonitor: true } });
+  const kOrders = [...new Set(allBoxes.flatMap((b) => [b.usdomCpu, b.usdomMonitor]))];
+
   const [boxes, rollsRecent, rollsTotal, rollsHoy, matchAlerts] = await Promise.all([
     prisma.kromaBox.findMany({
       select: { usdomCpu: true, usdomMonitor: true, status: true, matchedAt: true, matchedBy: true, cajaLabel: true, stCpu: true, stMonitor: true },
     }),
     prisma.labelRoll.findMany({
+      where: { orderNumber: { in: kOrders } },
       orderBy: { createdAt: 'desc' }, take: 30,
       select: { orderNumber: true, value: true, position: true, operator: true, createdAt: true },
     }),
-    prisma.labelRoll.count(),
-    prisma.labelRoll.count({ where: { createdAt: { gte: startToday } } }),
+    prisma.labelRoll.count({ where: { orderNumber: { in: kOrders } } }),
+    prisma.labelRoll.count({ where: { orderNumber: { in: kOrders }, createdAt: { gte: startToday } } }),
     prisma.scanEvent.findMany({
-      where: { step: 'MATCH', result: 'MISMATCH', createdAt: { gte: startToday } },
+      where: { step: 'MATCH', result: 'MISMATCH', createdAt: { gte: startToday }, operator: { not: 'TEST' } },
       orderBy: { createdAt: 'desc' }, take: 15,
       select: { assetTag: true, operator: true, message: true, createdAt: true },
     }),
