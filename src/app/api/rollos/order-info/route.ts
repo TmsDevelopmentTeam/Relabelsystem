@@ -35,6 +35,28 @@ export async function GET(req: NextRequest) {
     if (esPartida > 0) partida = order;
   }
 
+  // --- Modo KROMA (order = USDOM del catálogo KROMA) ---
+  if (order && !partida) {
+    const kCpu = await prisma.kromaBox.count({ where: { usdomCpu: order } });
+    const kMon = kCpu ? 0 : await prisma.kromaBox.count({ where: { usdomMonitor: order } });
+    if (kCpu > 0 || kMon > 0) {
+      const expectedLabels = kCpu > 0 ? kCpu : kMon;
+      const rollAll = await prisma.labelRoll.findMany({ where: { orderNumber: order }, select: { value: true } });
+      const scannedInRoll = rollAll.length;
+      const scannedEquipos = new Set(rollAll.map((r) => r.value)).size;
+      return NextResponse.json({
+        order, modo: 'kroma', tipo: kCpu > 0 ? 'CPU' : 'MONITOR',
+        equipmentCount: expectedLabels, laptopCount: 0, otherCount: expectedLabels, expectedLabels,
+        scannedInRoll, scannedEquipos,
+        remainingEquipos: Math.max(expectedLabels - scannedEquipos, 0),
+        completedPctEquipos: expectedLabels ? Math.min(100, Math.round((scannedEquipos / expectedLabels) * 100)) : 0,
+        remaining: Math.max(expectedLabels - scannedInRoll, 0),
+        completedPct: expectedLabels ? Math.min(100, Math.round((scannedInRoll / expectedLabels) * 100)) : 0,
+        complete: scannedInRoll >= expectedLabels && expectedLabels > 0,
+      });
+    }
+  }
+
   // --- Modo PALLET (partida + pallet) ---
   if (partida && pallet) {
     const ubis = await prisma.ubicacion.findMany({

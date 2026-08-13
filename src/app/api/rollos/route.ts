@@ -28,6 +28,54 @@ export async function POST(req: NextRequest) {
     if (!value) return NextResponse.json({ ok: false, message: 'Vacío' }, { status: 400 });
     if (!orderNumber) return NextResponse.json({ ok: false, message: 'Falta orden o partida+pallet' }, { status: 400 });
 
+    // === RAMA KROMA ===
+    // Si la orden es un USDOM del catálogo KROMA, validamos el Service Tag contra
+    // esa orden (CPU o monitor) en vez del catálogo Telcel. Dedup: 1 etiqueta por ST.
+    const kCpuCount = await prisma.kromaBox.count({ where: { usdomCpu: orderNumber } });
+    const kMonCount = kCpuCount ? 0 : await prisma.kromaBox.count({ where: { usdomMonitor: orderNumber } });
+    if (!palletMode && (kCpuCount > 0 || kMonCount > 0)) {
+      const tipo = kCpuCount > 0 ? 'CPU' : 'MONITOR';
+      const belongs = tipo === 'CPU'
+        ? await prisma.kromaBox.findFirst({ where: { usdomCpu: orderNumber, stCpu: value }, select: { cajaLabel: true } })
+        : await prisma.kromaBox.findFirst({ where: { usdomMonitor: orderNumber, stMonitor: value }, select: { cajaLabel: true } });
+      if (!belongs && !force) {
+        const other = await prisma.kromaBox.findFirst({
+          where: { OR: [{ stCpu: value }, { stMonitor: value }] },
+          select: { usdomCpu: true, usdomMonitor: true, stCpu: true, cajaLabel: true },
+        });
+        if (!other) {
+          return NextResponse.json({ ok: false, reason: 'NOT_IN_CATALOG', message: `La etiqueta ${value} no existe en el catálogo KROMA.`, scanned: value });
+        }
+        const esCpu = other.stCpu === value;
+        const otherOrder = esCpu ? other.usdomCpu : other.usdomMonitor;
+        return NextResponse.json({
+          ok: false, reason: 'WRONG_ORDER',
+          message: `Esta etiqueta NO está en la orden ${orderNumber}. Pertenece a ${otherOrder}.`,
+          scanned: value, expectedOrder: otherOrder, currentOrder: orderNumber,
+          equipment: { assetTag: value, producto: `KROMA ${esCpu ? 'CPU' : 'Monitor'} · caja ${other.cajaLabel ?? '?'}` },
+        });
+      }
+      const alreadyK = await prisma.labelRoll.count({ where: { value, orderNumber } });
+      if (alreadyK >= 1 && !force) {
+        return NextResponse.json({ ok: false, reason: 'ALREADY_SCANNED', message: `La etiqueta ${value} ya se escaneó en la orden ${orderNumber}.`, scanned: value, alreadyCount: alreadyK, expectedCount: 1 });
+      }
+      const lastK = await prisma.labelRoll.findFirst({ where: { orderNumber }, orderBy: { position: 'desc' }, select: { position: true } });
+      const createdK = await prisma.labelRoll.create({ data: { value, operator, orderNumber, position: (lastK?.position ?? 0) + 1 } });
+      const rollAllK = await prisma.labelRoll.findMany({ where: { orderNumber }, orderBy: { position: 'asc' }, select: { value: true } });
+      const distinctK: string[] = [];
+      for (const r of rollAllK) if (!distinctK.includes(r.value)) distinctK.push(r.value);
+      return NextResponse.json({
+        ok: true, entry: createdK,
+        equipoNum: distinctK.indexOf(value) + 1,
+        totalEquiposEnRollo: distinctK.length,
+        etiquetasDeEsteEquipo: 1,
+        totalForOrder: rollAllK.length,
+        totalOverall: await prisma.labelRoll.count(),
+        equipment: { assetTag: value, producto: `KROMA ${tipo} · caja ${belongs?.cajaLabel ?? '?'}`, equipmentType: tipo === 'CPU' ? 'DESKTOP' : 'MONITOR' },
+      });
+    }
+    // === FIN RAMA KROMA ===
+
     // --- Validación en modo PALLET: la etiqueta debe estar en ese pallet de esa partida ---
     if (palletMode && !force) {
       const enPallet = await prisma.ubicacion.findFirst({

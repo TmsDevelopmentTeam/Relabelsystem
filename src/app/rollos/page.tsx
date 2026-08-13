@@ -18,6 +18,7 @@ export default function RollosPage() {
   const [ordersSummary, setOrdersSummary] = useState<{ orders: { orderNumber: string | null; count: number }[]; overall: number } | null>(null);
   const [partSummary, setPartSummary] = useState<{ partidas: { partida: string; totalEquipos: number; escaneados: number; pallets: { pallet: string; equipos: number; escaneados: number; completo: boolean }[] }[] } | null>(null);
   const [lastId, setLastId] = useState<number | null>(null);
+  const [kOrders, setKOrders] = useState<{ cpu: { order: string; total: number }[]; mon: { order: string; total: number }[] }>({ cpu: [], mon: [] });
   const [wrongOrder, setWrongOrder] = useState<{ scanned: string; expectedOrder: string; equipment: any } | null>(null);
   const [lastConfirm, setLastConfirm] = useState<{ position: number; value: string; equipment: any; equipoNum?: number | null; totalEquiposEnRollo?: number; etiquetasDeEsteEquipo?: number } | null>(null);
 
@@ -54,6 +55,17 @@ export default function RollosPage() {
     try {
       const rp = await fetch('/api/rollos/partida-summary', { cache: 'no-store' });
       setPartSummary(await rp.json());
+    } catch {}
+    try {
+      const rk = await fetch('/api/kroma/info', { cache: 'no-store' });
+      const jk = await rk.json();
+      if (jk?.ok) {
+        const cpu = (jk.ordenes ?? []).map((o: any) => ({ order: o.usdomCpu, total: o.total }));
+        const monMap = new Map<string, number>();
+        for (const o of jk.ordenes ?? []) monMap.set(o.usdomMonitor, (monMap.get(o.usdomMonitor) ?? 0) + o.total);
+        const mon = [...monMap.entries()].map(([order, total]) => ({ order, total }));
+        setKOrders({ cpu, mon });
+      }
     } catch {}
   }
 
@@ -155,12 +167,12 @@ export default function RollosPage() {
 
       {/* Selector de orden */}
       <div className="rounded-lg bg-slate-900 border-2 border-cyan-500 p-4">
-        <label className="block text-sm text-slate-300 mb-2">Orden o <b className="text-cyan-300">Partida</b> (los rollos ahora van por partida: ej. <span className="font-mono">1520 D</span>)</label>
+        <label className="block text-sm text-slate-300 mb-2">Orden <b className="text-cyan-300">USDOM</b> (elige abajo una orden CPU o Monitor, o teclea el número)</label>
         <div className="flex gap-2 flex-wrap">
           <input
             value={orderNumber}
             onChange={(e) => saveOrder(e.target.value.trim())}
-            placeholder="Ej. 1520 D  ·  ó una orden 1031565130"
+            placeholder="Ej. 1031049756 (orden USDOM)"
             className="flex-1 rounded bg-slate-950 border border-slate-700 px-3 py-2 text-xl font-mono text-white"
           />
           {ordersSummary && ordersSummary.orders.length > 0 && (
@@ -225,18 +237,37 @@ export default function RollosPage() {
           </div>
         )}
 
-        {/* Partidas de desktop (rollos por partida) */}
-        <div className="mt-3">
-          <div className="text-xs text-slate-400 mb-1">Partidas de Desktop (toca para elegir):</div>
-          <div className="flex flex-wrap gap-1.5">
-            {['1520 D', '1540 D', '1550 D', '1560 D', 'Cedros 03 D', 'Cedros 05 D', 'Cedros 07 D', 'Respando D'].map((p) => (
-              <button key={p} onClick={() => saveOrder(p)}
-                className={`rounded px-2.5 py-1 text-xs font-mono border ${orderNumber === p ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'}`}>
-                {p}
-              </button>
-            ))}
+        {/* Órdenes KROMA (toca para elegir) */}
+        {(kOrders.cpu.length > 0 || kOrders.mon.length > 0) && (
+          <div className="mt-3 space-y-2">
+            {kOrders.cpu.length > 0 && (
+              <div>
+                <div className="text-xs text-slate-400 mb-1">🖥️ Órdenes CPU (USDOM):</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {kOrders.cpu.map((o) => (
+                    <button key={o.order} onClick={() => saveOrder(o.order)}
+                      className={`rounded px-2.5 py-1 text-xs font-mono border ${orderNumber === o.order ? 'bg-sky-600 border-sky-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'}`}>
+                      {o.order} <span className="opacity-60">· {o.total}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {kOrders.mon.length > 0 && (
+              <div>
+                <div className="text-xs text-slate-400 mb-1">📺 Órdenes Monitor (USDOM):</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {kOrders.mon.map((o) => (
+                    <button key={o.order} onClick={() => saveOrder(o.order)}
+                      className={`rounded px-2.5 py-1 text-xs font-mono border ${orderNumber === o.order ? 'bg-fuchsia-600 border-fuchsia-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'}`}>
+                      {o.order} <span className="opacity-60">· {o.total}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Start/Stop Scan (oculto mientras solo hay partida sin pallet elegido) */}
